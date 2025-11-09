@@ -1,9 +1,6 @@
 import type { Container, PointData } from 'pixi.js';
-import {
-  clampPointToPen,
-  isPointInsidePen,
-  type PenBounds,
-} from '../lib/geometry/penBounds';
+import type { PenBounds } from '../lib/geometry/penBounds';
+import type { SpatialQueryService } from '../runtime/services';
 
 export type ConstraintMode = 'pen' | 'none';
 export type ConstraintBehavior = 'clamp' | 'bounce';
@@ -22,6 +19,7 @@ export type PenConstraintSystemOptions = {
   defaultBehavior: ConstraintBehavior;
   bounceDamping: number;
   clampVelocityMultiplier: number;
+  spatial: SpatialQueryService;
 };
 
 type InternalEntry = Constrainable & {
@@ -70,7 +68,7 @@ export const createPenConstraintSystem = (
   };
 
   const resolveClamp = (entry: InternalEntry, bounds: PenBounds) => {
-    const resolved = clampPointToPen(entry.target.position, bounds);
+    const resolved = options.spatial.clampToPen(entry.target.position, bounds);
     entry.target.position.set(resolved.x, resolved.y);
     if (entry.velocity) {
       const multiplier = entry.clampVelocityMultiplier ?? options.clampVelocityMultiplier;
@@ -86,7 +84,7 @@ export const createPenConstraintSystem = (
       return;
     }
 
-    const resolved = clampPointToPen(entry.target.position, bounds);
+    const resolved = options.spatial.clampToPen(entry.target.position, bounds);
     const normal = normalize({
       x: entry.target.position.x - resolved.x,
       y: entry.target.position.y - resolved.y,
@@ -123,7 +121,7 @@ export const createPenConstraintSystem = (
 
       const position = entry.target.position;
       const point = { x: position.x, y: position.y };
-      if (isPointInsidePen(point, bounds)) {
+      if (options.spatial.isPointInsidePen(point, bounds)) {
         entry.lastPosition = point;
         return;
       }

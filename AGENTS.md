@@ -30,6 +30,7 @@ chickengame/
   - `bootstrap.ts` mounts the Pixi canvas, instantiates the runtime, and forwards ticker/resizer hooks; always return/await its destroy handler during tests.
 - `src/runtime/`
   - `gameRuntime.ts` exposes `createGameRuntime` plus typed `registerLayer`/`registerSystem` APIs. Add new systems or overlays by registering them here so bootstrap stays untouched. Keep wiring side-effect free by passing configs/services in through the runtime context.
+  - `services/` houses cross-cutting runtime helpers (layers, viewport sizing, pen bounds, spatial math, audio). Dependents should pull state through these services instead of reaching into scenes or the DOM directly.
 - `src/config/`
   - Co-locate constants (colors, ratios, difficulty knobs) so gameplay systems and UI share the same source of truth. Re-export from `index.ts` for ergonomic imports.
 - `src/entities/`

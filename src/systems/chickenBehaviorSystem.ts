@@ -4,7 +4,7 @@ import type { ChickenWalkAnimator } from './chickenWalkAnimator';
 import type { ChickenPeckAnimator } from './chickenPeckAnimator';
 import type { ChickenFlapAnimator } from './chickenFlapAnimator';
 import type { PenBounds } from '../lib/geometry/penBounds';
-import { clampPointToPen, clampPointToFootprint, isPointInsidePen } from '../lib/geometry/penBounds';
+import type { SpatialQueryService } from '../runtime/services';
 
 const randomRange = (min: number, max: number) => min + Math.random() * (max - min);
 const randomInt = (min: number, max: number) => Math.floor(randomRange(min, max + 1));
@@ -19,6 +19,7 @@ type ChickenBehaviorSystemOptions = {
   peckAnimator: ChickenPeckAnimator;
   flapAnimator: ChickenFlapAnimator;
   getPenBounds: () => PenBounds | null;
+  spatial: SpatialQueryService;
 };
 
 type WalkContext = {
@@ -54,18 +55,6 @@ const stateDurationFor = (state: BehaviorState): number => {
   }
 };
 
-const pickRandomPointInPen = (bounds: PenBounds): { x: number; y: number } => {
-  const { footprint } = bounds;
-  const candidate = {
-    x: randomRange(footprint.minX, footprint.maxX),
-    y: randomRange(footprint.minY, footprint.maxY),
-  };
-  if (isPointInsidePen(candidate, bounds)) {
-    return candidate;
-  }
-  return clampPointToPen(candidate, bounds);
-};
-
 const faceTowards = (view: Container, dx: number, chicken: Chicken) => {
   if (Math.abs(dx) < 0.5) {
     return;
@@ -87,6 +76,7 @@ export const createChickenBehaviorSystem = ({
   peckAnimator,
   flapAnimator,
   getPenBounds,
+  spatial,
 }: ChickenBehaviorSystemOptions): ChickenBehaviorSystem => {
   let state: BehaviorState = 'idle';
   let stateElapsed = 0;
@@ -144,7 +134,15 @@ export const createChickenBehaviorSystem = ({
     if (!bounds) {
       return;
     }
-    const target = pickRandomPointInPen(bounds);
+    const randomSample = spatial.samplePointInPen(bounds);
+    const target = randomSample ??
+      spatial.clampToPen(
+        {
+          x: randomRange(bounds.footprint.minX, bounds.footprint.maxX),
+          y: randomRange(bounds.footprint.minY, bounds.footprint.maxY),
+        },
+        bounds,
+      );
     const speed = randomRange(65, 120);
     walkContext = { target, speed };
   };
@@ -173,7 +171,7 @@ export const createChickenBehaviorSystem = ({
 
     const ratio = step >= distance ? 1 : step / distance;
     position.set(position.x + dx * ratio, position.y + dy * ratio);
-    const clamped = clampPointToFootprint(position, bounds);
+    const clamped = spatial.clampToFootprint(position, bounds);
     position.set(clamped.x, clamped.y);
     faceTowards(chicken.view, dx, chicken);
   };

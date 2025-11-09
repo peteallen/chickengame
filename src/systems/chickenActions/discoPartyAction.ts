@@ -8,9 +8,8 @@ export const createDiscoPartyAction = (): ChickenActionDefinition => ({
   id: 'disco-party',
   weight: 1,
   create: (context) => {
-    const { flapAnimator, overlays, audio, behaviorControls } = context;
+    const { flapAnimator, overlays, audioService, behaviorControls } = context;
     const rig = overlays.discoRig;
-    const edmLoop = audio.edmLoop;
     const beatDurationMS = 60000 / DISCO_TEMPO;
     let behaviorHandle: BehaviorControlHandle | null = null;
 
@@ -25,7 +24,7 @@ export const createDiscoPartyAction = (): ChickenActionDefinition => ({
         rig.setEnabled(true);
         rig.setPulseStrength(0);
         flapAnimator.start();
-        void edmLoop.start();
+        void audioService.playLoop('edm');
       },
       onUpdate: (_, elapsedMS) => {
         const beatPhase = (elapsedMS % beatDurationMS) / beatDurationMS;
@@ -35,7 +34,7 @@ export const createDiscoPartyAction = (): ChickenActionDefinition => ({
       onExit: () => {
         rig.setEnabled(false);
         rig.setPulseStrength(0);
-        edmLoop.stop();
+        audioService.stopLoop('edm');
         flapAnimator.stop();
         behaviorHandle?.release();
         behaviorHandle = null;

@@ -1,7 +1,6 @@
 import { Container, type Application } from 'pixi.js';
 import type { Theme } from '../config/theme';
 import type { EnvironmentConfig } from '../config/environment';
-import type { PenBounds } from '../lib/geometry/penBounds';
 import {
   createEnvironmentScene,
   type EnvironmentScene,
@@ -49,41 +48,26 @@ import {
   type RenderDepthSystem,
 } from '../systems/renderDepthSystem';
 import { createDiscoRig, type DiscoRig } from '../entities/discoRig';
-import { createEdmLoop, type EdmLoop } from '../lib/audio/edmLoop';
 import { createDevWorkbench, type DevWorkbench } from '../ui/devWorkbench/createDevWorkbench';
-
-const midpoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
-  x: (a.x + b.x) / 2,
-  y: (a.y + b.y) / 2,
-});
-
-const getPenCenter = (bounds: PenBounds) => {
-  const { polygon } = bounds;
-  const frontMid = midpoint(polygon.frontLeft, polygon.frontRight);
-  const backMid = midpoint(polygon.backLeft, polygon.backRight);
-  return midpoint(frontMid, backMid);
-};
-
-const getFrontWidth = (bounds: PenBounds) => {
-  const { polygon } = bounds;
-  return Math.hypot(
-    polygon.frontRight.x - polygon.frontLeft.x,
-    polygon.frontRight.y - polygon.frontLeft.y,
-  );
-};
-
-const computeChickenScale = (bounds: PenBounds, nominalWidth: number) => {
-  const frontWidth = getFrontWidth(bounds);
-  const desiredWidth = frontWidth * 0.22;
-  const rawScale = desiredWidth / nominalWidth;
-  return Math.max(0.35, Math.min(1.35, rawScale));
-};
+import {
+  createAudioService,
+  createLayerService,
+  createPenBoundsService,
+  createSpatialQueryService,
+  createViewportService,
+  type AudioService,
+  type LayerService,
+  type PenBoundsService,
+  type SpatialQueryService,
+  type ViewportService,
+} from './services';
 
 export type RuntimeSize = { width: number; height: number };
 
 export type RuntimeLayerRegistration = {
   key: string;
   container: Container;
+  zIndex?: number;
   init?: () => void;
   layout?: (size: RuntimeSize) => void;
   update?: (deltaMS: number) => void;
@@ -98,13 +82,12 @@ export type RuntimeSystemRegistration = {
   destroy?: () => void;
 };
 
-export type RuntimeLayers = {
-  environment: Container;
-  overlay: Container;
-  devtools: Container;
-};
-
 export type RuntimeServices = {
+  layerService: LayerService;
+  viewportService: ViewportService;
+  penBoundsService: PenBoundsService;
+  spatialQueryService: SpatialQueryService;
+  audioService: AudioService;
   chicken: Chicken;
   environmentScene: EnvironmentScene;
   penConstraints: PenConstraintSystem;
@@ -117,7 +100,6 @@ export type RuntimeServices = {
   depthSystem: RenderDepthSystem;
   behaviorControls: ActionBehaviorControls;
   overlays: { discoRig: DiscoRig };
-  audio: { edmLoop: EdmLoop };
 };
 
 export type GameRuntimeContext = {
@@ -125,7 +107,6 @@ export type GameRuntimeContext = {
     theme: Theme;
     environment: EnvironmentConfig;
   };
-  layers: RuntimeLayers;
   services: RuntimeServices;
 };
 
@@ -163,6 +144,11 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
   let destroyed = false;
   let context: GameRuntimeContext | null = null;
 
+  const layerService = createLayerService({ app, devMode });
+  const viewportService = createViewportService({ app });
+  const spatialQueryService = createSpatialQueryService();
+  const audioService = createAudioService();
+
   const addDisposable = (cleanup: () => void) => {
     let called = false;
     const wrapped = () => {
@@ -184,6 +170,10 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     addDisposable(() => layoutHooks.delete(hook));
   };
 
+  addDisposable(() => viewportService.destroy());
+  addDisposable(() => layerService.destroy());
+  addDisposable(() => audioService.destroy());
+
   const registerLayer = (layer: RuntimeLayerRegistration) => {
     if (destroyed) {
       throw new Error('Cannot register layers after runtime is destroyed');
@@ -192,7 +182,11 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
       throw new Error(`Layer "${layer.key}" already registered`);
     }
     layerRegistry.set(layer.key, layer);
-    app.stage.addChild(layer.container);
+    layerService.register({
+      key: layer.key,
+      container: layer.container,
+      zIndex: layer.zIndex,
+    });
     if (layer.layout) {
       addLayoutHook(layer.layout);
     }
@@ -226,6 +220,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
       return;
     }
     currentSize = size;
+    viewportService.notifyResize(size);
     layoutHooks.forEach((hook) => hook(size));
   };
 
@@ -268,7 +263,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
       .forEach((system) => system.destroy?.());
     layerRegistry.forEach((layer) => {
       layer.destroy?.();
-      layer.container.parent?.removeChild(layer.container);
+      layerService.unregister(layer.key);
     });
     disposables.forEach((dispose) => dispose());
     layerRegistry.clear();
@@ -283,36 +278,26 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
    * Default runtime wiring — constructing the environment, systems, and dev tooling.
    */
   const environmentScene = createEnvironmentScene(theme, environment);
-  const overlayLayer = new Container();
-  overlayLayer.eventMode = 'none';
-  overlayLayer.sortableChildren = true;
-  const devLayer = new Container();
-  devLayer.visible = devMode;
-  devLayer.sortableChildren = true;
 
   registerLayer({
     key: 'environment',
     container: environmentScene.container,
-    layout: ({ width, height }) => environmentScene.layout({ width, height }),
+    zIndex: 0,
     update: (deltaMS) => environmentScene.update(deltaMS),
   });
 
-  registerLayer({
-    key: 'overlay',
-    container: overlayLayer,
-  });
+  const overlayLayer = layerService.withLayer('overlay', (layer) => layer);
+  const devLayer = layerService.withLayer('dev', (layer) => layer);
 
-  registerLayer({
-    key: 'devtools',
-    container: devLayer,
-    destroy: () => devLayer.destroy({ children: true }),
+  const penBoundsService = createPenBoundsService({
+    source: environmentScene,
+    spatial: spatialQueryService,
   });
+  addDisposable(() => penBoundsService.destroy());
 
   const depthSystem = createRenderDepthSystem();
-  const discoRig = createDiscoRig();
+  const discoRig = createDiscoRig({ spatial: spatialQueryService });
   overlayLayer.addChild(discoRig.view);
-
-  const edmLoop = createEdmLoop();
 
   const chicken = createChicken(theme.chicken);
   environmentScene.penLayer.addChild(chicken.view);
@@ -335,6 +320,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     peckAnimator,
     flapAnimator,
     getPenBounds: environmentScene.getPenBounds,
+    spatial: spatialQueryService,
   });
 
   const penConstraintSystem = createPenConstraintSystem({
@@ -342,6 +328,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     defaultBehavior: environment.constraints.defaultBehavior,
     bounceDamping: environment.constraints.bounceDamping,
     clampVelocityMultiplier: environment.constraints.clampVelocityMultiplier,
+    spatial: spatialQueryService,
   });
 
   penConstraintSystem.register({
@@ -383,9 +370,10 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
       chickFollower,
       depthSystem,
       behaviorControls,
-      layers: { overlay: overlayLayer },
+      layerService,
+      penBoundsService,
+      audioService,
       overlays: { discoRig },
-      audio: { edmLoop },
     },
     actions,
   });
@@ -396,18 +384,25 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
   chicken.view.on('pointertap', handleChickenTap);
   addDisposable(() => chicken.view.off('pointertap', handleChickenTap));
 
-  const detachPenListener = environmentScene.onPenBoundsChanged((bounds) => {
-    discoRig.setPenBounds(bounds);
-    const center = getPenCenter(bounds);
-    chicken.view.position.set(center.x, center.y);
-    const scale = computeChickenScale(bounds, chicken.metrics.referenceWidth);
+  const detachPenListener = penBoundsService.onChange((snapshot) => {
+    discoRig.setPenBounds(snapshot.bounds);
+    chicken.view.position.set(snapshot.center.x, snapshot.center.y);
+    const scale = penBoundsService.getChickenScale(chicken.metrics.referenceWidth);
     chicken.setScale(scale);
   });
   addDisposable(detachPenListener);
 
-  addLayoutHook(({ width, height }) => {
-    discoRig.layout({ width, height });
-  });
+  addDisposable(
+    viewportService.onResize(({ size }) => {
+      environmentScene.layout(size);
+    }),
+  );
+
+  addDisposable(
+    viewportService.onResize(({ size }) => {
+      discoRig.layout(size);
+    }),
+  );
 
   registerSystem({
     key: 'pen-constraints',
@@ -471,17 +466,17 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
 
   let devWorkbench: DevWorkbench | null = null;
   if (devMode) {
-    const initialSize =
-      currentSize ?? { width: app.renderer.width, height: app.renderer.height };
+    const initialSize = viewportService.getSize();
     devWorkbench = createDevWorkbench({
       layer: devLayer,
       root,
       theme,
       initialSize,
     });
-    addLayoutHook((size) => {
+    const detachDevLayout = viewportService.onResize(({ size }) => {
       devWorkbench?.layout(size);
     });
+    addDisposable(detachDevLayout);
     registerSystem({
       key: 'dev-workbench',
       priority: 100,
@@ -490,14 +485,16 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     });
   }
 
+  viewportService.init();
+
   context = {
     config: { theme, environment },
-    layers: {
-      environment: environmentScene.container,
-      overlay: overlayLayer,
-      devtools: devLayer,
-    },
     services: {
+      layerService,
+      viewportService,
+      penBoundsService,
+      spatialQueryService,
+      audioService,
       chicken,
       environmentScene,
       penConstraints: penConstraintSystem,
@@ -510,13 +507,8 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
       depthSystem,
       behaviorControls,
       overlays: { discoRig },
-      audio: { edmLoop },
     },
   };
-
-  addDisposable(() => {
-    edmLoop.stop();
-  });
 
   return {
     start,

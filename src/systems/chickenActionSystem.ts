@@ -1,4 +1,3 @@
-import type { Container } from 'pixi.js';
 import type { Chicken } from '../entities/chicken';
 import type { ChickenBehaviorSystem } from './chickenBehaviorSystem';
 import type { ChickenWalkAnimator } from './chickenWalkAnimator';
@@ -6,12 +5,16 @@ import type { ChickenPeckAnimator } from './chickenPeckAnimator';
 import type { ChickenFlapAnimator } from './chickenFlapAnimator';
 import type { EnvironmentScene } from '../scenes/environmentScene';
 import type { DiscoRig } from '../entities/discoRig';
-import type { EdmLoop } from '../lib/audio/edmLoop';
 import type { PenConstraintSystem } from './penConstraintSystem';
 import type { Theme } from '../config/theme';
 import type { ChickFollowerManager } from './chickFollowerSystem';
 import type { RenderDepthSystem } from './renderDepthSystem';
 import type { ActionBehaviorControls } from './chickenActions/behaviorControl';
+import type {
+  AudioService,
+  LayerService,
+  PenBoundsService,
+} from '../runtime/services';
 
 export type ChickenActionContext = {
   chicken: Chicken;
@@ -25,15 +28,12 @@ export type ChickenActionContext = {
   chickFollower: ChickFollowerManager;
   depthSystem: RenderDepthSystem;
   behaviorControls: ActionBehaviorControls;
-  layers: {
-    overlay: Container;
-  };
+  layerService: LayerService;
+  penBoundsService: PenBoundsService;
   overlays: {
     discoRig: DiscoRig;
   };
-  audio: {
-    edmLoop: EdmLoop;
-  };
+  audioService: AudioService;
 };
 
 export type ChickenActionInstance = {

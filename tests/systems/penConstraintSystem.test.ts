@@ -9,6 +9,7 @@ import {
   createPenConstraintSystem,
   type Constrainable,
 } from '../../src/systems/penConstraintSystem';
+import { createSpatialQueryService } from '../../src/runtime/services';
 
 const createBounds = (): PenBounds =>
   createPenBounds({
@@ -18,12 +19,15 @@ const createBounds = (): PenBounds =>
     backLeft: { x: 2, y: 0 },
   });
 
+const spatial = createSpatialQueryService();
+
 const createSystem = (bounds: PenBounds = createBounds()) =>
   createPenConstraintSystem({
     getPenBounds: () => bounds,
     defaultBehavior: 'clamp',
     bounceDamping: 0.6,
     clampVelocityMultiplier: 0,
+    spatial,
   });
 
 const createEntry = (): Constrainable => ({

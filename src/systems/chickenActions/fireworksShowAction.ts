@@ -384,8 +384,8 @@ export const createFireworksShowAction = (): ChickenActionDefinition => ({
   id: 'fireworks-show',
   weight: 0.9,
   create: (context) => {
-    const { environmentScene, theme, layers, behaviorControls } = context;
-    const overlayLayer = layers.overlay;
+    const { environmentScene, theme, layerService, penBoundsService, behaviorControls } = context;
+    const overlayLayer = layerService.withLayer('overlay', (layer) => layer);
     const fireworksLayer = new Container();
     fireworksLayer.sortableChildren = true;
     fireworksLayer.zIndex = 1;
@@ -409,7 +409,7 @@ export const createFireworksShowAction = (): ChickenActionDefinition => ({
       0xb47bff,
     ];
 
-    const bases = computeBasePositions(environmentScene.getPenBounds(), FIREWORK_COUNT);
+    const bases = computeBasePositions(penBoundsService.getBounds(), FIREWORK_COUNT);
     const peaks = computePeaks(bases);
 
     const launchRail = new Graphics();

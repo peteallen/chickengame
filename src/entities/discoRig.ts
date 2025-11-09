@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { clampPointToPen, type PenBounds } from '../lib/geometry/penBounds';
+import type { SpatialQueryService } from '../runtime/services';
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 
@@ -101,7 +102,8 @@ const samplePointInsidePen = (bounds: PenBounds): BeamTarget => {
   return randomPointInTriangle(tri[0], tri[1], tri[2]);
 };
 
-export const createDiscoRig = (): DiscoRig => {
+export const createDiscoRig = (options?: { spatial?: SpatialQueryService }): DiscoRig => {
+  const spatial = options?.spatial;
   const view = new Container();
   view.sortableChildren = true;
   view.eventMode = 'none';
@@ -143,6 +145,20 @@ export const createDiscoRig = (): DiscoRig => {
   const beams: Beam[] = [];
   const fixtures: Fixture[] = [];
   const palette = [0xff5fd2, 0x6c5dff, 0x3fe9ff, 0xfff56e, 0xff7b8a];
+
+  const clampToPen = (point: BeamTarget, bounds: PenBounds) =>
+    spatial ? spatial.clampToPen(point, bounds) : clampPointToPen(point, bounds);
+
+  const pickPointInPen = (bounds: PenBounds): BeamTarget => {
+    if (!bounds) {
+      return defaultGroundPoint();
+    }
+    const point = spatial?.samplePointInPen(bounds);
+    if (point) {
+      return { x: point.x, y: point.y };
+    }
+    return samplePointInsidePen(bounds);
+  };
 
   const defaultGroundPoint = (): BeamTarget => ({
     x: viewport.width / 2,
@@ -202,7 +218,7 @@ export const createDiscoRig = (): DiscoRig => {
     if (penBounds) {
       const bounds = penBounds;
       fixtures.forEach((fixture) => {
-        const sample = samplePointInsidePen(bounds);
+        const sample = pickPointInPen(bounds);
         fixture.beam.anchor = clonePoint(sample);
         fixture.beam.target = clonePoint(sample);
         fixture.beam.anchorTimer = randomRange(1200, 2400);
@@ -322,7 +338,7 @@ export const createDiscoRig = (): DiscoRig => {
       beam.anchorTimer -= deltaMS;
       if (beam.anchorTimer <= 0) {
         if (penBounds) {
-          beam.anchor = clonePoint(samplePointInsidePen(penBounds));
+          beam.anchor = clonePoint(pickPointInPen(penBounds));
           beam.anchorTimer = randomRange(1600, 3200);
         } else {
           beam.anchor = clonePoint(defaultGroundPoint());
@@ -336,7 +352,7 @@ export const createDiscoRig = (): DiscoRig => {
         x: beam.anchor.x + offsetX,
         y: beam.anchor.y + offsetY,
       };
-      const grounded = penBounds ? clampPointToPen(candidate, penBounds) : candidate;
+      const grounded = penBounds ? clampToPen(candidate, penBounds) : candidate;
       beam.target.x += (grounded.x - beam.target.x) * positionEase;
       beam.target.y += (grounded.y - beam.target.y) * positionEase;
 
