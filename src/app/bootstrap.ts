@@ -19,6 +19,7 @@ import { createDiscoRig } from '../entities/discoRig';
 import { createEdmLoop } from '../lib/audio/edmLoop';
 import { createPixiApp, initPixiApp } from './pixiApp';
 import { createRenderDepthSystem } from '../systems/renderDepthSystem';
+import { createDevWorkbench, type DevWorkbench } from '../ui/devWorkbench/createDevWorkbench';
 
 const midpoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
   x: (a.x + b.x) / 2,
@@ -70,12 +71,17 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
   const overlayLayer = new Container();
   overlayLayer.eventMode = 'none';
   overlayLayer.sortableChildren = true;
-  app.stage.addChild(environmentScene.container, overlayLayer);
+  const devLayer = new Container();
+  devLayer.visible = false;
+  devLayer.sortableChildren = true;
+
+  app.stage.addChild(environmentScene.container, overlayLayer, devLayer);
 
   const discoRig = createDiscoRig();
   overlayLayer.addChild(discoRig.view);
 
   const edmLoop = createEdmLoop();
+  let devWorkbench: DevWorkbench | null = null;
 
   const depthSystem = createRenderDepthSystem();
 
@@ -167,6 +173,7 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
   });
 
   const handleTick = (ticker: Ticker) => {
+    environmentScene.update(ticker.deltaMS);
     penConstraintSystem.update(ticker.deltaMS);
     walkAnimator.update(ticker.deltaMS);
     peckAnimator.update(ticker.deltaMS);
@@ -176,6 +183,7 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
     chickFollower.update(ticker.deltaMS);
     discoRig.update(ticker.deltaMS);
     depthSystem.update();
+    devWorkbench?.update(ticker.deltaMS);
   };
   app.ticker.add(handleTick);
 
@@ -188,10 +196,24 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
       width: app.renderer.width,
       height: app.renderer.height,
     });
+    devWorkbench?.layout({
+      width: app.renderer.width,
+      height: app.renderer.height,
+    });
   };
 
   handleResize();
   window.addEventListener('resize', handleResize);
+
+  if (devMode) {
+    devLayer.visible = true;
+    devWorkbench = createDevWorkbench({
+      layer: devLayer,
+      root,
+      theme,
+      initialSize: { width: app.renderer.width, height: app.renderer.height },
+    });
+  }
 
   return {
     app,
@@ -208,6 +230,8 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
       discoRig.destroy();
       edmLoop.stop();
       depthSystem.clear();
+      devWorkbench?.destroy();
+      devLayer.destroy({ children: true });
     },
   } as const;
 };

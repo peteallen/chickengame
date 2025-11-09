@@ -1,0 +1,104 @@
+.dev-workbench {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  min-width: 280px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(8, 6, 24, 0.88);
+  color: #f2f2ff;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  z-index: 50;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.dev-workbench__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.dev-workbench__toggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: inherit;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.dev-workbench--collapsed {
+  padding: 8px 12px;
+}
+
+.dev-workbench--collapsed .dev-workbench__body {
+  display: none;
+}
+
+.dev-workbench label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dev-workbench select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.dev-workbench__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dev-workbench__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.dev-workbench__actions button {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #5b7cfa;
+  color: #fff;
+}
+
+.dev-workbench__actions button[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dev-workbench__actions button:nth-of-type(2) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dev-workbench__status {
+  margin-left: auto;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+
+.dev-workbench__description {
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}

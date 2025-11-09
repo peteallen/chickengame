@@ -9,11 +9,13 @@ import {
   type PenBounds,
   type PenPolygon,
 } from '../lib/geometry/penBounds';
+import { createSkyBackdrop } from '../entities/skyBackdrop';
 
 export type EnvironmentScene = {
   container: Container;
   penLayer: Container;
   layout: (size: { width: number; height: number }) => void;
+  update: (deltaMS: number) => void;
   getPenBounds: () => PenBounds | null;
   onPenBoundsChanged: (listener: (bounds: PenBounds) => void) => () => void;
 };
@@ -23,6 +25,7 @@ export const createEnvironmentScene = (
   environment: EnvironmentConfig,
 ): EnvironmentScene => {
   const container = new Container();
+  const sky = createSkyBackdrop(theme.atmosphere);
   const grass = createGrassField(theme.grass);
   const fence = createPicketFence(theme.fence);
   const barn = createBarn(theme.barn);
@@ -40,7 +43,7 @@ export const createEnvironmentScene = (
   };
 
   // Ensure Z-order: background grass, barn silhouette, then fence on top
-  container.addChild(grass.view, barn.view, fence.view);
+  container.addChild(sky.view, grass.view, barn.view, fence.view);
 
   const layout = ({ width, height }: { width: number; height: number }) => {
     const {
@@ -53,6 +56,7 @@ export const createEnvironmentScene = (
     const horizonY = height * horizonRatio;
 
     // Full field stays grass; padding keeps it extending past edges, but sky remains transparent.
+    sky.layout({ width, height, horizonY });
     grass.draw({ width, height, padding: fieldConfig.padding, horizonY });
 
     const centerX = width / 2;
@@ -147,30 +151,72 @@ export const createEnvironmentScene = (
       backLeft: { x: centerX - penBackWidth / 2, y: penBackY },
     };
 
-    const barnWidth = Math.max(90, Math.min(200, width * 0.2));
+    const baseBarnWidth = Math.max(90, Math.min(200, width * 0.2));
+    const barnWidth = Math.max(110, Math.min(240, width * 0.24));
     const fenceFrontLeftX = centerX - fenceFrontWidth / 2;
-    const fenceClearance = Math.max(36, fenceConfig.viewportPaddingX * 0.55);
-    const gapLeftEdge = Math.max(
-      barnWidth * 0.1,
-      fenceConfig.viewportPaddingX * 0.35,
-      fieldConfig.padding * 0.4,
-    );
-    const gapRightEdge = Math.max(gapLeftEdge + barnWidth, fenceFrontLeftX - fenceClearance);
-    const rawGapCenter = gapLeftEdge + (gapRightEdge - gapLeftEdge) / 2;
-    const minCenter = gapLeftEdge + barnWidth / 2;
-    const maxCenter = gapRightEdge - barnWidth / 2;
-    const barnCenterX = Math.min(maxCenter, Math.max(minCenter, rawGapCenter));
-
     const approxBarnHeight = barnWidth * 1.06;
     const skyOverlap = Math.max(16, barnWidth * 0.12);
     const minBarnBaseY = horizonY + Math.max(10, approxBarnHeight * 0.18);
     const maxBarnBaseYFromGround = baseY - groundGap * 0.35;
     const maxBarnBaseYForOverlap = horizonY + approxBarnHeight - skyOverlap;
-    const targetOffset = Math.max(16, (baseY - horizonY) * 0.25);
-    let barnBaseY = horizonY + targetOffset;
-    barnBaseY = Math.min(barnBaseY, maxBarnBaseYFromGround);
-    barnBaseY = Math.min(barnBaseY, maxBarnBaseYForOverlap);
-    barnBaseY = Math.max(minBarnBaseY, barnBaseY);
+    const barnBaseUpperLimit = Math.min(maxBarnBaseYFromGround, maxBarnBaseYForOverlap);
+    const barnVerticalMargin = Math.max(6, (barnBaseUpperLimit - minBarnBaseY) * 0.12);
+    let barnBaseY = minBarnBaseY + barnVerticalMargin;
+    barnBaseY = Math.min(barnBaseY, barnBaseUpperLimit);
+
+    const fenceFrontLeft = penCorners.frontLeft;
+    const fenceBackLeft = penCorners.backLeft;
+    const fenceLeftSpanY = Math.max(1, fenceFrontLeft.y - fenceBackLeft.y);
+    const clampedBarnBaseY = Math.min(
+      fenceFrontLeft.y,
+      Math.max(fenceBackLeft.y, barnBaseY),
+    );
+    const fenceProgress = (fenceFrontLeft.y - clampedBarnBaseY) / fenceLeftSpanY;
+    const fenceLeftXAtBarnBase =
+      fenceFrontLeft.x + (fenceBackLeft.x - fenceFrontLeft.x) * fenceProgress;
+
+    const gapLeftEdge = Math.max(
+      barnWidth * 0.1,
+      fenceConfig.viewportPaddingX * 0.35,
+      fieldConfig.padding * 0.4,
+    );
+    const barnFenceBuffer = Math.max(6, barnWidth * 0.02);
+    const fenceLimitX = fenceLeftXAtBarnBase - barnFenceBuffer;
+    const viewportRightLimit =
+      width -
+      Math.max(
+        fenceConfig.viewportPaddingX * 0.25,
+        fieldConfig.padding * 0.25,
+        barnWidth * 0.05,
+      );
+    const candidateRightEdge = Math.min(viewportRightLimit, fenceLimitX);
+    const gapRightEdge = Math.max(gapLeftEdge + barnWidth, candidateRightEdge);
+    const minCenter = gapLeftEdge + barnWidth / 2;
+    const maxCenter = gapRightEdge - barnWidth / 2;
+    const fenceAlignedCenter = Math.max(
+      minCenter,
+      Math.min(maxCenter, fenceLimitX - barnWidth / 2),
+    );
+
+    const legacyGapRightEdge = Math.max(
+      gapLeftEdge + barnWidth,
+      fenceFrontLeftX - barnFenceBuffer,
+    );
+    const legacyCenter = Math.max(
+      minCenter,
+      Math.min(maxCenter, legacyGapRightEdge - barnWidth / 2),
+    );
+
+    let targetCenter = fenceAlignedCenter;
+    if (fenceAlignedCenter > legacyCenter) {
+      targetCenter = legacyCenter + (fenceAlignedCenter - legacyCenter) * 0.5;
+    }
+    const widthDelta = Math.max(0, barnWidth - baseBarnWidth);
+    if (widthDelta > 0) {
+      targetCenter -= widthDelta / 2;
+    }
+
+    const barnCenterX = Math.max(minCenter, Math.min(maxCenter, targetCenter));
 
     barn.draw({
       centerX: barnCenterX,
@@ -196,10 +242,15 @@ export const createEnvironmentScene = (
     notifyPenBounds();
   };
 
+  const update = (deltaMS: number) => {
+    sky.update(deltaMS);
+  };
+
   return {
     container,
     penLayer,
     layout,
+    update,
     getPenBounds: () => penBounds,
     onPenBoundsChanged: (listener: (bounds: PenBounds) => void) => {
       penBoundsListeners.add(listener);

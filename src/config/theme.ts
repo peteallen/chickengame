@@ -1,6 +1,15 @@
 export const theme = {
   // Pure blue sky; ensure this is used as the Pixi background (see [`src/app/bootstrap.ts`](src/app/bootstrap.ts:1))
   sky: '#63b9ff',
+  atmosphere: {
+    cloudLight: 0xffffff,
+    cloudMid: 0xf5f7ff,
+    cloudShadow: 0xd7e4ff,
+    cloudHighlight: 0xfffef4,
+    sunCore: 0xffd84d,
+    sunGlow: 0xfff59b,
+    sunHalo: 0xfff8cf,
+  },
   farm: {
     top: 0xfaf0d7,
     left: 0xf5d5d4,

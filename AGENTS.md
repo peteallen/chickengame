@@ -8,6 +8,7 @@ chickengame/
 │   ├── assets/           # Importable sprite/audio/json manifests (static via Vite)
 │   ├── config/           # Theme/environment knobs shared across features
 │   ├── entities/         # Reusable renderable objects & constructors
+│   ├── devtools/         # Developer-mode animation catalogs + entity adapters
 │   ├── lib/              # Pure helpers (math, easing, random, etc.)
 │   ├── scenes/           # Scene compositions that arrange entities into containers
 │   ├── styles/           # Global CSS + layered partials bundled via index.css
@@ -36,6 +37,10 @@ chickengame/
   - Reserve for logic that needs per-frame ticking (physics, collisions, scoring). Systems should consume scenes/entities via lightweight interfaces to stay testable.
 - `src/ui/`
   - For DOM-based overlays or Pixi UI widgets. Keep styling with CSS Modules or colocated `.ts` when interacting with gameplay state.
+- `src/ui/devWorkbench/`
+  - Dev-only overlay that wires the animation catalog into a control panel; keep DOM/CSS for the workbench here so it stays sandboxed from production UI.
+- `src/devtools/`
+  - Houses the reusable animation clip/sequences catalog plus entity adapters so dev tooling (or tests) can instantiate entities and play clips without touching runtime systems.
 - `src/styles/`
   - `index.css` aggregates modular partials (`base.css`, `layout.css`, etc.). Add new layers here instead of piling everything into one file.
 - `src/assets/`
