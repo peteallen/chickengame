@@ -11,7 +11,7 @@ const randomInt = (min: number, max: number) => Math.floor(randomRange(min, max 
 
 export type BehaviorState = 'idle' | 'walk' | 'peck' | 'flap';
 
-type AnimatorAuthority = 'system' | 'external';
+export type AnimatorAuthority = 'system' | 'external';
 
 type ChickenBehaviorSystemOptions = {
   chicken: Chicken;

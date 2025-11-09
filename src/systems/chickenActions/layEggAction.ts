@@ -1,6 +1,7 @@
 import type { ChickenActionDefinition } from '../chickenActionSystem';
 import { CHICKEN_IDLE_POSE } from '../../entities/chicken';
 import { createEgg, type Egg, EGG_METRICS } from '../../entities/egg';
+import type { BehaviorControlHandle } from './behaviorControl';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
@@ -42,10 +43,12 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       theme,
       chickFollower,
       depthSystem,
+      behaviorControls,
     } = context;
 
     const penLayer = environmentScene.penLayer;
     let controlReleased = false;
+    let behaviorHandle: BehaviorControlHandle | null = null;
     let egg: Egg | null = null;
     let eggPosition: { x: number; y: number } | null = null;
     let eggGroundY: number | null = null;
@@ -57,19 +60,13 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
     let walkAwayStarted = false;
     let walkLockReleaseAt: number | null = null;
 
-    const releaseControl = (options?: { preserveLock?: boolean }) => {
+    const releaseControl = () => {
       if (controlReleased) {
-        if (!options?.preserveLock) {
-          behaviorSystem.setStateLock(null);
-        }
         return;
       }
       controlReleased = true;
-      behaviorSystem.setSpeedMultiplier(1);
-      behaviorSystem.setAnimatorAuthority('system');
-      if (!options?.preserveLock) {
-        behaviorSystem.setStateLock(null);
-      }
+      behaviorHandle?.release();
+      behaviorHandle = null;
       chicken.resetPose();
     };
 
@@ -89,8 +86,7 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
         return;
       }
       walkAwayStarted = true;
-      releaseControl({ preserveLock: true });
-      behaviorSystem.setAnimatorAuthority('system');
+      releaseControl();
       behaviorSystem.setStateLock('walk');
       behaviorSystem.setSpeedMultiplier(1.1);
       walkLockReleaseAt = elapsedMS + WALK_LOCK_DURATION_MS;
@@ -209,9 +205,12 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
     return {
       durationMS: ACTION_DURATION_MS,
       onEnter: () => {
-        behaviorSystem.setAnimatorAuthority('external');
-        behaviorSystem.setStateLock('idle');
-        behaviorSystem.setSpeedMultiplier(0);
+        controlReleased = false;
+        behaviorHandle = behaviorControls.takeover({
+          animatorAuthority: 'external',
+          stateLock: 'idle',
+          speedMultiplier: 0,
+        });
         chicken.resetPose();
       },
       onUpdate: (deltaMS, elapsedMS) => {
@@ -242,9 +241,6 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       onExit: () => {
         releaseControl();
         cleanupEgg();
-        behaviorSystem.setAnimatorAuthority('system');
-        behaviorSystem.setStateLock(null);
-        behaviorSystem.setSpeedMultiplier(1);
       },
     };
   },

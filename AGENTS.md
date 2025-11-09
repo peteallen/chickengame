@@ -46,4 +46,5 @@ chickengame/
 ## Workflow Notes
 1. Add new gameplay pieces by defining entities → scene wiring → system updates in that order.
 2. Share constants via `src/config` to avoid magic numbers inside systems.
-3. When adding folders not covered above, append a short description here so future agents stay aligned.
+3. Action systems must go through `behaviorControls.takeover()` when pausing the chicken (locks, speed multipliers, follower toggles) and release their handle as soon as player control can resume; never poke `behaviorSystem`/`chickFollower` directly inside actions.
+4. When adding folders not covered above, append a short description here so future agents stay aligned.

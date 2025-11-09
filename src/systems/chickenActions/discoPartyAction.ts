@@ -1,4 +1,5 @@
 import type { ChickenActionDefinition } from '../chickenActionSystem';
+import type { BehaviorControlHandle } from './behaviorControl';
 
 const DISCO_DURATION_MS = 5000;
 const DISCO_TEMPO = 132; // BPM for pulse sync
@@ -7,17 +8,20 @@ export const createDiscoPartyAction = (): ChickenActionDefinition => ({
   id: 'disco-party',
   weight: 1,
   create: (context) => {
-    const { behaviorSystem, flapAnimator, overlays, audio } = context;
+    const { flapAnimator, overlays, audio, behaviorControls } = context;
     const rig = overlays.discoRig;
     const edmLoop = audio.edmLoop;
     const beatDurationMS = 60000 / DISCO_TEMPO;
+    let behaviorHandle: BehaviorControlHandle | null = null;
 
     return {
       durationMS: DISCO_DURATION_MS,
       onEnter: () => {
-        behaviorSystem.setAnimatorAuthority('external');
-        behaviorSystem.setStateLock('walk');
-        behaviorSystem.setSpeedMultiplier(2);
+        behaviorHandle = behaviorControls.takeover({
+          animatorAuthority: 'external',
+          stateLock: 'walk',
+          speedMultiplier: 2,
+        });
         rig.setEnabled(true);
         rig.setPulseStrength(0);
         flapAnimator.start();
@@ -33,9 +37,8 @@ export const createDiscoPartyAction = (): ChickenActionDefinition => ({
         rig.setPulseStrength(0);
         edmLoop.stop();
         flapAnimator.stop();
-        behaviorSystem.setSpeedMultiplier(1);
-        behaviorSystem.setStateLock(null);
-        behaviorSystem.setAnimatorAuthority('system');
+        behaviorHandle?.release();
+        behaviorHandle = null;
       },
     };
   },

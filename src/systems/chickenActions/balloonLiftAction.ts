@@ -1,6 +1,7 @@
 import type { ChickenActionDefinition } from '../chickenActionSystem';
 import { CHICKEN_IDLE_POSE } from '../../entities/chicken';
 import { createBalloonBundle, type BalloonBundle } from '../../entities/balloonBundle';
+import type { BehaviorControlHandle } from './behaviorControl';
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
@@ -25,7 +26,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
   id: 'balloon-lift',
   weight: 0.9,
   create: (context) => {
-    const { chicken, behaviorSystem, environmentScene, depthSystem, theme, flapAnimator, chickFollower } = context;
+    const { chicken, environmentScene, depthSystem, theme, flapAnimator, behaviorControls } = context;
     const penLayer = environmentScene.penLayer;
 
     const gripLocal = {
@@ -62,6 +63,20 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
     let isFalling = false;
     let releaseAnchor: { x: number; y: number } | null = null;
     let releaseVelocity = { x: 0, y: 0 };
+    let behaviorHandle: BehaviorControlHandle | null = null;
+    let behaviorReleased = false;
+
+    const releaseBehaviorControl = () => {
+      if (behaviorReleased) {
+        return;
+      }
+      behaviorReleased = true;
+      behaviorHandle?.release();
+      behaviorHandle = null;
+      chicken.view.position.set(basePosition.x, basePosition.y);
+      chicken.resetPose();
+      applyShadowLiftEffect(0);
+    };
 
     const spawnBundle = () => {
       if (bundle) {
@@ -187,10 +202,13 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
     return {
       durationMS: ACTION_DURATION_MS,
       onEnter: () => {
-        chickFollower.setFollowingEnabled(false);
-        behaviorSystem.setAnimatorAuthority('external');
-        behaviorSystem.setStateLock('idle');
-        behaviorSystem.setSpeedMultiplier(0);
+        behaviorReleased = false;
+        behaviorHandle = behaviorControls.takeover({
+          animatorAuthority: 'external',
+          stateLock: 'idle',
+          speedMultiplier: 0,
+          followerEnabled: false,
+        });
         chicken.resetPose();
         captureShadowBase();
         applyShadowLiftEffect(0);
@@ -219,7 +237,9 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
         })();
 
         const fallingPhase = elapsedMS >= SUSPEND_END_MS;
-        applyChickenLift(liftHeight, { skipPose: fallingPhase });
+        if (!behaviorReleased) {
+          applyChickenLift(liftHeight, { skipPose: fallingPhase });
+        }
         if (!isReleased) {
           updateBundleAttachment();
         }
@@ -237,6 +257,10 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
           chicken.resetPose();
         }
 
+        if (!behaviorReleased && elapsedMS >= FALL_END_MS) {
+          releaseBehaviorControl();
+        }
+
         let releaseProgress = 0;
         if (isReleased && releaseStartMS !== null) {
           releaseProgress = clamp((elapsedMS - releaseStartMS) / BALLOON_EXIT_DURATION_MS, 0, 1);
@@ -246,16 +270,10 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
         updateBalloonDynamics(elapsedMS, liftHeight, releaseProgress, deltaMS);
       },
       onExit: () => {
-        chickFollower.setFollowingEnabled(true);
-        behaviorSystem.setAnimatorAuthority('system');
-        behaviorSystem.setStateLock(null);
-        behaviorSystem.setSpeedMultiplier(1);
+        releaseBehaviorControl();
         if (flapAnimator.isRunning()) {
           flapAnimator.stop();
         }
-        chicken.view.position.set(basePosition.x, basePosition.y);
-        chicken.resetPose();
-        applyShadowLiftEffect(0);
         removeBundle();
       },
     };

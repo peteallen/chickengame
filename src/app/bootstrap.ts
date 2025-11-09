@@ -12,6 +12,8 @@ import { createChickenActionSystem } from '../systems/chickenActionSystem';
 import { createBalloonLiftAction } from '../systems/chickenActions/balloonLiftAction';
 import { createDiscoPartyAction } from '../systems/chickenActions/discoPartyAction';
 import { createLayEggAction } from '../systems/chickenActions/layEggAction';
+import { createJetpackJoyrideAction } from '../systems/chickenActions/jetpackJoyrideAction';
+import { createActionBehaviorControls } from '../systems/chickenActions/behaviorControl';
 import { createChickFollowerManager } from '../systems/chickFollowerSystem';
 import { createDiscoRig } from '../entities/discoRig';
 import { createEdmLoop } from '../lib/audio/edmLoop';
@@ -45,7 +47,12 @@ const computeChickenScale = (bounds: PenBounds, nominalWidth: number) => {
   return Math.max(0.35, Math.min(1.35, rawScale));
 };
 
-export const bootstrap = async () => {
+type BootstrapOptions = {
+  devMode?: boolean;
+};
+
+export const bootstrap = async (options: BootstrapOptions = {}) => {
+  const { devMode = false } = options;
   const root = document.querySelector<HTMLDivElement>('#app');
   if (!root) {
     throw new Error('Unable to find #app container');
@@ -115,10 +122,16 @@ export const bootstrap = async () => {
     depthSystem,
   });
 
+  const behaviorControls = createActionBehaviorControls({
+    behaviorSystem,
+    chickFollower,
+  });
+
   const actions = [
     createBalloonLiftAction(),
     createDiscoPartyAction(),
     createLayEggAction(),
+    createJetpackJoyrideAction(),
   ];
 
   const actionSystem = createChickenActionSystem({
@@ -133,6 +146,7 @@ export const bootstrap = async () => {
       theme,
       chickFollower,
       depthSystem,
+      behaviorControls,
       overlays: { discoRig },
       audio: { edmLoop },
     },
@@ -145,6 +159,7 @@ export const bootstrap = async () => {
   chicken.view.on('pointertap', handleChickenTap);
 
   const detachPenListener = environmentScene.onPenBoundsChanged((bounds) => {
+    discoRig.setPenBounds(bounds);
     const center = getPenCenter(bounds);
     chicken.view.position.set(center.x, center.y);
     const scale = computeChickenScale(bounds, chicken.metrics.referenceWidth);

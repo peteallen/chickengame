@@ -10,6 +10,7 @@ import type { PenConstraintSystem } from './penConstraintSystem';
 import type { Theme } from '../config/theme';
 import type { ChickFollowerManager } from './chickFollowerSystem';
 import type { RenderDepthSystem } from './renderDepthSystem';
+import type { ActionBehaviorControls } from './chickenActions/behaviorControl';
 
 export type ChickenActionContext = {
   chicken: Chicken;
@@ -22,6 +23,7 @@ export type ChickenActionContext = {
   theme: Theme;
   chickFollower: ChickFollowerManager;
   depthSystem: RenderDepthSystem;
+  behaviorControls: ActionBehaviorControls;
   overlays: {
     discoRig: DiscoRig;
   };
@@ -94,6 +96,7 @@ export const createChickenActionSystem = (
     if (!instance || !Number.isFinite(instance.durationMS) || instance.durationMS <= 0) {
       return false;
     }
+    context.behaviorControls.releaseAll();
     current = { definition: chosen, instance, elapsed: 0 };
     current.instance.onEnter?.();
     return true;
@@ -109,16 +112,19 @@ export const createChickenActionSystem = (
     instance.onUpdate?.(deltaMS, elapsed, progress);
     if (elapsed >= instance.durationMS) {
       instance.onExit?.();
+      context.behaviorControls.releaseAll();
       current = null;
     }
   };
 
   const destroy = () => {
     if (!current) {
+      context.behaviorControls.releaseAll();
       return;
     }
     current.instance.onExit?.();
     current = null;
+    context.behaviorControls.releaseAll();
   };
 
   const isActionActive = () => Boolean(current);
