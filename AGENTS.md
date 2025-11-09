@@ -1,0 +1,49 @@
+# AGENTS
+
+## Project Layout (updated November 8, 2025)
+```
+chickengame/
+├── src/
+│   ├── app/              # Runtime bootstrap + Pixi application wiring
+│   ├── assets/           # Importable sprite/audio/json manifests (static via Vite)
+│   ├── config/           # Theme/environment knobs shared across features
+│   ├── entities/         # Reusable renderable objects & constructors
+│   ├── lib/              # Pure helpers (math, easing, random, etc.)
+│   ├── scenes/           # Scene compositions that arrange entities into containers
+│   ├── styles/           # Global CSS + layered partials bundled via index.css
+│   ├── systems/          # Frame-by-frame gameplay systems (physics, scoring, AI)
+│   ├── ui/               # HUD overlays, menus, modal controls separate from Pixi scenes
+│   └── main.ts           # Entry that imports styles and boots the app
+├── tests/                # Vitest/Playwright suites mirroring src structure
+├── dist/                 # Build output from `vite build`
+├── index.html            # Vite HTML entry (rarely touched)
+├── package.json          # Scripts + dependencies
+├── tsconfig.json         # TS compiler config
+└── vite.config.ts        # Vite bundler config
+```
+
+## Folder Guidance
+- `src/app/`
+  - `pixiApp.ts` centralizes creation/init of the Pixi `Application` so global renderer flags stay consistent.
+  - `bootstrap.ts` handles DOM lookup, canvas mounting, scene registration, and lifecycle cleanup; return its destroy handler when wiring tests.
+- `src/config/`
+  - Co-locate constants (colors, ratios, difficulty knobs) so gameplay systems and UI share the same source of truth. Re-export from `index.ts` for ergonomic imports.
+- `src/entities/`
+  - Keep entities small and composable (e.g., `createGround`, `createHorizonLine`) that expose `{ view, draw|update }`. Assets that belong exclusively to an entity should sit beside it.
+- `src/scenes/`
+  - Scenes orchestrate entities into Pixi `Container`s (`createEnvironmentScene`). They expose `layout/update` hooks so systems can drive them without knowing internals.
+- `src/systems/`
+  - Reserve for logic that needs per-frame ticking (physics, collisions, scoring). Systems should consume scenes/entities via lightweight interfaces to stay testable.
+- `src/ui/`
+  - For DOM-based overlays or Pixi UI widgets. Keep styling with CSS Modules or colocated `.ts` when interacting with gameplay state.
+- `src/styles/`
+  - `index.css` aggregates modular partials (`base.css`, `layout.css`, etc.). Add new layers here instead of piling everything into one file.
+- `src/assets/`
+  - Place spritesheets, audio, JSON atlases, and manifest helpers. When adding new assets, export loader helpers so scenes can await them deterministically.
+- `tests/`
+  - Mirror the `src/` tree. Scene/system tests belong next to their feature folder with identical relative paths for easy discovery.
+
+## Workflow Notes
+1. Add new gameplay pieces by defining entities → scene wiring → system updates in that order.
+2. Share constants via `src/config` to avoid magic numbers inside systems.
+3. When adding folders not covered above, append a short description here so future agents stay aligned.

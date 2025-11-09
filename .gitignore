@@ -1,0 +1,26 @@
+# Node & Vite artifacts
+node_modules/
+dist/
+.vite/
+
+# Build/test caches
+.cache/
+coverage/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env & OS noise
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# IDE metadata
+.idea/
+.vscode/
