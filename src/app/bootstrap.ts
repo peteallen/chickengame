@@ -115,12 +115,11 @@ export const bootstrap = async () => {
     depthSystem,
   });
 
-  const ENABLE_EXTRA_ACTIONS = false; // toggle to re-enable disco/egg while testing balloon lift
-
-  const actions = [createBalloonLiftAction()];
-  if (ENABLE_EXTRA_ACTIONS) {
-    actions.push(createDiscoPartyAction(), createLayEggAction());
-  }
+  const actions = [
+    createBalloonLiftAction(),
+    createDiscoPartyAction(),
+    createLayEggAction(),
+  ];
 
   const actionSystem = createChickenActionSystem({
     context: {
