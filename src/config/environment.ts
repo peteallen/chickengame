@@ -7,9 +7,9 @@ export const environment = {
   },
   fence: {
     offset: 18,
-    postSpacing: 26,
-    postWidth: 8,
-    postHeight: 52,
+    postSpacing: 104,
+    postWidth: 24,
+    postHeight: 104,
     railGap: 18,
     viewportPaddingX: 40,
     viewportPaddingY: 18,

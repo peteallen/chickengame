@@ -9,12 +9,14 @@ import { createChickenPeckAnimator } from '../systems/chickenPeckAnimator';
 import { createChickenFlapAnimator } from '../systems/chickenFlapAnimator';
 import { createChickenBehaviorSystem } from '../systems/chickenBehaviorSystem';
 import { createChickenActionSystem } from '../systems/chickenActionSystem';
+import { createBalloonLiftAction } from '../systems/chickenActions/balloonLiftAction';
 import { createDiscoPartyAction } from '../systems/chickenActions/discoPartyAction';
 import { createLayEggAction } from '../systems/chickenActions/layEggAction';
 import { createChickFollowerManager } from '../systems/chickFollowerSystem';
 import { createDiscoRig } from '../entities/discoRig';
 import { createEdmLoop } from '../lib/audio/edmLoop';
 import { createPixiApp, initPixiApp } from './pixiApp';
+import { createRenderDepthSystem } from '../systems/renderDepthSystem';
 
 const midpoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
   x: (a.x + b.x) / 2,
@@ -68,8 +70,18 @@ export const bootstrap = async () => {
 
   const edmLoop = createEdmLoop();
 
+  const depthSystem = createRenderDepthSystem();
+
   const chicken = createChicken(theme.chicken);
   environmentScene.penLayer.addChild(chicken.view);
+  depthSystem.register({
+    target: chicken.view,
+    layer: 1,
+    getDepth: () =>
+      chicken.view.position.y +
+      chicken.metrics.feet.groundY * Math.abs(chicken.view.scale.y),
+    bias: 0.2,
+  });
 
   const walkAnimator = createChickenWalkAnimator({ chicken });
   const peckAnimator = createChickenPeckAnimator({ chicken });
@@ -100,7 +112,15 @@ export const bootstrap = async () => {
     environmentScene,
     penConstraints: penConstraintSystem,
     theme,
+    depthSystem,
   });
+
+  const ENABLE_EXTRA_ACTIONS = false; // toggle to re-enable disco/egg while testing balloon lift
+
+  const actions = [createBalloonLiftAction()];
+  if (ENABLE_EXTRA_ACTIONS) {
+    actions.push(createDiscoPartyAction(), createLayEggAction());
+  }
 
   const actionSystem = createChickenActionSystem({
     context: {
@@ -113,10 +133,11 @@ export const bootstrap = async () => {
       penConstraints: penConstraintSystem,
       theme,
       chickFollower,
+      depthSystem,
       overlays: { discoRig },
       audio: { edmLoop },
     },
-    actions: [createDiscoPartyAction(), createLayEggAction()],
+    actions,
   });
 
   const handleChickenTap = () => {
@@ -140,6 +161,7 @@ export const bootstrap = async () => {
     actionSystem.update(ticker.deltaMS);
     chickFollower.update(ticker.deltaMS);
     discoRig.update(ticker.deltaMS);
+    depthSystem.update();
   };
   app.ticker.add(handleTick);
 
@@ -171,6 +193,7 @@ export const bootstrap = async () => {
       chickFollower.destroy();
       discoRig.destroy();
       edmLoop.stop();
+      depthSystem.clear();
     },
   } as const;
 };

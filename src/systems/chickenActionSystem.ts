@@ -9,6 +9,7 @@ import type { EdmLoop } from '../lib/audio/edmLoop';
 import type { PenConstraintSystem } from './penConstraintSystem';
 import type { Theme } from '../config/theme';
 import type { ChickFollowerManager } from './chickFollowerSystem';
+import type { RenderDepthSystem } from './renderDepthSystem';
 
 export type ChickenActionContext = {
   chicken: Chicken;
@@ -20,6 +21,7 @@ export type ChickenActionContext = {
   penConstraints: PenConstraintSystem;
   theme: Theme;
   chickFollower: ChickFollowerManager;
+  depthSystem: RenderDepthSystem;
   overlays: {
     discoRig: DiscoRig;
   };

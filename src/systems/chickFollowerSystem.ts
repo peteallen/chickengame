@@ -3,6 +3,7 @@ import { createChick, type Chick } from '../entities/chick';
 import type { Theme } from '../config/theme';
 import type { EnvironmentScene } from '../scenes/environmentScene';
 import type { PenConstraintSystem } from './penConstraintSystem';
+import type { RenderDepthSystem } from './renderDepthSystem';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
@@ -53,8 +54,9 @@ export const createChickFollowerManager = (options: {
   environmentScene: EnvironmentScene;
   penConstraints: PenConstraintSystem;
   theme: Theme;
+  depthSystem: RenderDepthSystem;
 }): ChickFollowerManager => {
-  const { environmentScene, penConstraints, theme } = options;
+  const { environmentScene, penConstraints, theme, depthSystem } = options;
   const penLayer = environmentScene.penLayer;
   const fadeInDurationMS = 800;
   let active: ActiveChick | null = null;
@@ -64,6 +66,7 @@ export const createChickFollowerManager = (options: {
       return;
     }
     penConstraints.unregister(active.chick.view);
+    depthSystem.unregister(active.chick.view);
     active.chick.view.parent?.removeChild(active.chick.view);
     active.chick.destroy();
     active = null;
@@ -79,6 +82,14 @@ export const createChickFollowerManager = (options: {
     chick.view.alpha = 0;
     penLayer.addChild(chick.view);
     penConstraints.register({ target: chick.view, mode: 'pen', behavior: 'clamp' });
+    depthSystem.register({
+      target: chick.view,
+      layer: 1,
+      getDepth: () =>
+        chick.view.position.y +
+        chick.metrics.feet.groundY * Math.abs(chick.view.scale.y),
+      bias: -0.1,
+    });
 
     active = {
       chick,

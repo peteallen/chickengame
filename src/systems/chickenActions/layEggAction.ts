@@ -41,6 +41,7 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       environmentScene,
       theme,
       chickFollower,
+      depthSystem,
     } = context;
 
     const penLayer = environmentScene.penLayer;
@@ -76,6 +77,7 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       if (!egg) {
         return;
       }
+      depthSystem.unregister(egg.view);
       egg.view.parent?.removeChild(egg.view);
       egg.destroy();
       egg = null;
@@ -107,8 +109,15 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       const x = chicken.view.position.x + eggOffsetX;
       const y = chicken.view.position.y + eggOffsetY;
       eggEntity.view.position.set(x, y);
-      eggEntity.view.zIndex = 0.98;
       penLayer.addChild(eggEntity.view);
+      depthSystem.register({
+        target: eggEntity.view,
+        layer: 1,
+        getDepth: () =>
+          eggEntity.view.position.y +
+          (EGG_METRICS.height / 2) * Math.abs(eggEntity.view.scale.y),
+        bias: -0.3,
+      });
       egg = eggEntity;
       eggPosition = { x, y };
       eggGroundY = y + (EGG_METRICS.height / 2) * scale;
