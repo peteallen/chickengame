@@ -4,7 +4,7 @@
 ```
 chickengame/
 ├── src/
-│   ├── app/              # Runtime bootstrap + Pixi application wiring
+│   ├── app/              # Pixi app creation + DOM bootstrap that hands control to the runtime
 │   ├── assets/           # Importable sprite/audio/json manifests (static via Vite)
 │   ├── config/           # Theme/environment knobs shared across features
 │   ├── entities/         # Reusable renderable objects & constructors
@@ -14,6 +14,7 @@ chickengame/
 │   ├── styles/           # Global CSS + layered partials bundled via index.css
 │   ├── systems/          # Frame-by-frame gameplay systems (physics, scoring, AI)
 │   ├── ui/               # HUD overlays, menus, modal controls separate from Pixi scenes
+│   ├── runtime/          # GameRuntime abstraction (layer/system registration + lifecycle)
 │   └── main.ts           # Entry that imports styles and boots the app
 ├── tests/                # Vitest/Playwright suites mirroring src structure
 ├── dist/                 # Build output from `vite build`
@@ -26,7 +27,9 @@ chickengame/
 ## Folder Guidance
 - `src/app/`
   - `pixiApp.ts` centralizes creation/init of the Pixi `Application` so global renderer flags stay consistent.
-  - `bootstrap.ts` handles DOM lookup, canvas mounting, scene registration, and lifecycle cleanup; return its destroy handler when wiring tests.
+  - `bootstrap.ts` now only mounts the Pixi canvas, instantiates the runtime, and forwards ticker/resizer hooks; always return/await its destroy handler during tests.
+- `src/runtime/`
+  - `gameRuntime.ts` exposes `createGameRuntime` plus typed `registerLayer`/`registerSystem` APIs. Add new systems or overlays by registering them here so bootstrap stays untouched. Keep wiring side-effect free by passing configs/services in through the runtime context.
 - `src/config/`
   - Co-locate constants (colors, ratios, difficulty knobs) so gameplay systems and UI share the same source of truth. Re-export from `index.ts` for ergonomic imports.
 - `src/entities/`
