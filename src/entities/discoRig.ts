@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
+import { clampPointToPen, type PenBounds } from '../lib/geometry/penBounds';
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 
@@ -7,16 +8,24 @@ export type DiscoRig = {
   layout: (size: { width: number; height: number }) => void;
   setEnabled: (enabled: boolean) => void;
   setPulseStrength: (strength: number) => void;
+  setPenBounds: (bounds: PenBounds | null) => void;
   update: (deltaMS: number) => void;
   destroy: () => void;
 };
+
+type BeamTarget = { x: number; y: number };
 
 type Beam = {
   container: Container;
   swaySpeed: number;
   swayOffset: number;
-  rotationAmplitude: number;
   intensity: number;
+  baseLength: number;
+  spot: Graphics;
+  anchor: BeamTarget;
+  target: BeamTarget;
+  wanderRadius: number;
+  anchorTimer: number;
 };
 
 type Fixture = {
@@ -50,6 +59,48 @@ const createBeamGraphic = (color: number, width: number, length: number): Contai
   return container;
 };
 
+const createGlowSpot = (color: number, radius: number) => {
+  const spot = new Graphics();
+  const outerRadius = radius;
+  const innerRadius = radius * 0.45;
+  spot
+    .circle(0, 0, outerRadius)
+    .fill({ color, alpha: 0.22 })
+    .circle(0, 0, innerRadius)
+    .fill({ color, alpha: 0.45 });
+  spot.pivot.set(0, 0);
+  spot.alpha = 0;
+  spot.blendMode = 'screen';
+  return spot;
+};
+
+const randomRange = (min: number, max: number) => min + Math.random() * (max - min);
+
+const clonePoint = (point: BeamTarget): BeamTarget => ({ x: point.x, y: point.y });
+
+const randomPointInTriangle = (a: BeamTarget, b: BeamTarget, c: BeamTarget): BeamTarget => {
+  const r1 = Math.random();
+  const r2 = Math.random();
+  const sqrtR1 = Math.sqrt(r1);
+  const u = 1 - sqrtR1;
+  const v = sqrtR1 * (1 - r2);
+  const w = sqrtR1 * r2;
+  return {
+    x: a.x * u + b.x * v + c.x * w,
+    y: a.y * u + b.y * v + c.y * w,
+  };
+};
+
+const samplePointInsidePen = (bounds: PenBounds): BeamTarget => {
+  const { frontLeft, frontRight, backRight, backLeft } = bounds.polygon;
+  const triangles: [BeamTarget, BeamTarget, BeamTarget][] = [
+    [frontLeft, frontRight, backRight],
+    [frontLeft, backRight, backLeft],
+  ];
+  const tri = triangles[Math.floor(Math.random() * triangles.length)];
+  return randomPointInTriangle(tri[0], tri[1], tri[2]);
+};
+
 export const createDiscoRig = (): DiscoRig => {
   const view = new Container();
   view.sortableChildren = true;
@@ -62,6 +113,10 @@ export const createDiscoRig = (): DiscoRig => {
   const floorGlow = new Graphics();
   floorGlow.zIndex = 0.4;
 
+  const spotLayer = new Container();
+  spotLayer.zIndex = 0.5;
+  spotLayer.blendMode = 'screen';
+
   const barContainer = new Container();
   barContainer.zIndex = 1;
   const barGraphic = new Graphics();
@@ -69,9 +124,10 @@ export const createDiscoRig = (): DiscoRig => {
   fixtureLayer.sortableChildren = true;
   barContainer.addChild(barGraphic, fixtureLayer);
 
-  view.addChild(dimmer, floorGlow, barContainer);
+  view.addChild(dimmer, floorGlow, spotLayer, barContainer);
 
   let viewport = { width: 0, height: 0 };
+  let penBounds: PenBounds | null = null;
   let enabled = false;
   let targetAlpha = 0;
   let currentAlpha = 0;
@@ -87,6 +143,11 @@ export const createDiscoRig = (): DiscoRig => {
   const beams: Beam[] = [];
   const fixtures: Fixture[] = [];
   const palette = [0xff5fd2, 0x6c5dff, 0x3fe9ff, 0xfff56e, 0xff7b8a];
+
+  const defaultGroundPoint = (): BeamTarget => ({
+    x: viewport.width / 2,
+    y: viewport.height * 0.82,
+  });
 
   palette.forEach((color, index) => {
     const width = 120 + Math.random() * 90;
@@ -110,6 +171,9 @@ export const createDiscoRig = (): DiscoRig => {
       .fill({ color, alpha: 0.35 });
     lens.position.y = housingHeight * 0.15;
 
+    const glowSpot = createGlowSpot(color, randomRange(28, 54));
+    spotLayer.addChild(glowSpot);
+
     fixture.addChild(beamContainer, housing, lens);
     fixtureLayer.addChild(fixture);
 
@@ -117,8 +181,13 @@ export const createDiscoRig = (): DiscoRig => {
       container: beamContainer,
       swaySpeed: 0.0006 + Math.random() * 0.0012,
       swayOffset: Math.random() * Math.PI * 2,
-      rotationAmplitude: 0.25 + Math.random() * 0.35,
       intensity: 0,
+      baseLength: length,
+      spot: glowSpot,
+      anchor: defaultGroundPoint(),
+      target: defaultGroundPoint(),
+      wanderRadius: randomRange(32, 82),
+      anchorTimer: randomRange(900, 1600),
     };
 
     beams.push(beam);
@@ -128,6 +197,25 @@ export const createDiscoRig = (): DiscoRig => {
       offsetRatio: palette.length <= 1 ? 0 : index / (palette.length - 1) - 0.5,
     });
   });
+
+  const resetBeamAnchors = () => {
+    if (penBounds) {
+      const bounds = penBounds;
+      fixtures.forEach((fixture) => {
+        const sample = samplePointInsidePen(bounds);
+        fixture.beam.anchor = clonePoint(sample);
+        fixture.beam.target = clonePoint(sample);
+        fixture.beam.anchorTimer = randomRange(1200, 2400);
+      });
+      return;
+    }
+    const fallback = defaultGroundPoint();
+    fixtures.forEach((fixture) => {
+      fixture.beam.anchor = clonePoint(fallback);
+      fixture.beam.target = clonePoint(fallback);
+      fixture.beam.anchorTimer = randomRange(900, 1400);
+    });
+  };
 
   const drawDimmer = () => {
     dimmer.clear();
@@ -178,6 +266,14 @@ export const createDiscoRig = (): DiscoRig => {
       fixture.container.x = fixture.offsetRatio * usableWidth;
       fixture.container.y = barHeight / 2;
     });
+    if (!penBounds) {
+      resetBeamAnchors();
+    }
+  };
+
+  const setPenBounds = (bounds: PenBounds | null) => {
+    penBounds = bounds;
+    resetBeamAnchors();
   };
 
   const setEnabled = (value: boolean) => {
@@ -216,16 +312,59 @@ export const createDiscoRig = (): DiscoRig => {
     floorGlow.alpha = (0.25 + pulse * 0.5) * glowGate;
     floorGlow.scale.set(1 + pulse * 0.22, 1 + pulse * 0.32);
 
+    const positionEase = Math.min(1, deltaMS / 220);
+    const depthMin = penBounds ? penBounds.footprint.minY : viewport.height * 0.6;
+    const depthMax = penBounds ? penBounds.footprint.maxY : viewport.height * 0.92;
+    const depthRange = Math.max(1, depthMax - depthMin);
+
     beams.forEach((beam, index) => {
       beam.swayOffset += beam.swaySpeed * deltaMS;
-      const wobble = Math.sin(beam.swayOffset + index);
+      beam.anchorTimer -= deltaMS;
+      if (beam.anchorTimer <= 0) {
+        if (penBounds) {
+          beam.anchor = clonePoint(samplePointInsidePen(penBounds));
+          beam.anchorTimer = randomRange(1600, 3200);
+        } else {
+          beam.anchor = clonePoint(defaultGroundPoint());
+          beam.anchorTimer = randomRange(900, 1600);
+        }
+      }
+
+      const offsetX = Math.sin(beam.swayOffset * 1.35 + index) * beam.wanderRadius;
+      const offsetY = Math.cos(beam.swayOffset * 0.85 + index * 0.4) * beam.wanderRadius * 0.65;
+      const candidate = {
+        x: beam.anchor.x + offsetX,
+        y: beam.anchor.y + offsetY,
+      };
+      const grounded = penBounds ? clampPointToPen(candidate, penBounds) : candidate;
+      beam.target.x += (grounded.x - beam.target.x) * positionEase;
+      beam.target.y += (grounded.y - beam.target.y) * positionEase;
+
       const intensityTarget = enabled ? 1 : 0;
       const intensityEase = Math.min(1, deltaMS / 220);
       beam.intensity += ((intensityTarget * clampedBar) - beam.intensity) * intensityEase;
-      const stretch = 0.6 + clampedBar * 1.0;
-      beam.container.scale.set(0.8 + Math.sin(beam.swayOffset * 1.3) * 0.12, stretch);
-      beam.container.rotation = wobble * beam.rotationAmplitude;
-      beam.container.alpha = clamp(beam.intensity * (0.7 + Math.sin(beam.swayOffset * 0.5) * 0.2), 0, 1);
+
+      const fixture = fixtures[index];
+      const origin = {
+        x: barContainer.position.x + fixture.container.x,
+        y: barContainer.position.y + fixture.container.y + beam.container.y,
+      };
+      const dx = beam.target.x - origin.x;
+      const dy = beam.target.y - origin.y;
+      const distance = Math.max(12, Math.hypot(dx, dy));
+      const angle = Math.atan2(dy, dx) - Math.PI / 2;
+      beam.container.rotation = angle;
+      beam.container.scale.x = 0.8 + Math.sin(beam.swayOffset * 1.2) * 0.12;
+      beam.container.scale.y = distance / beam.baseLength;
+      const flicker = 0.7 + Math.sin(beam.swayOffset * 0.5) * 0.2;
+      beam.container.alpha = clamp(beam.intensity * flicker, 0, 1);
+
+      const depthRatio = clamp((beam.target.y - depthMin) / depthRange, 0, 1);
+      const spotScale = 0.65 + depthRatio * 0.9;
+      beam.spot.position.set(beam.target.x, beam.target.y);
+      beam.spot.scale.set(spotScale);
+      const pulseBoost = 0.35 + pulse * 0.85;
+      beam.spot.alpha = clamp(beam.intensity * (0.35 + depthRatio * 0.5) * pulseBoost, 0, 1) * glowGate;
     });
   };
 
@@ -240,6 +379,7 @@ export const createDiscoRig = (): DiscoRig => {
     layout,
     setEnabled,
     setPulseStrength,
+    setPenBounds,
     update,
     destroy,
   };
