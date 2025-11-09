@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { ChickenActionDefinition } from '../chickenActionSystem';
 import type { BehaviorControlHandle } from './behaviorControl';
 import type { PenBounds } from '../../lib/geometry/penBounds';
+import type { SoundPlaybackHandle } from '../../lib/audio/soundEffect';
 
 const FIREWORK_COUNT = 5;
 const IGNITE_INTERVAL_MS = 600;
@@ -384,7 +385,14 @@ export const createFireworksShowAction = (): ChickenActionDefinition => ({
   id: 'fireworks-show',
   weight: 0.9,
   create: (context) => {
-    const { environmentScene, theme, layerService, penBoundsService, behaviorControls } = context;
+    const {
+      environmentScene,
+      theme,
+      layerService,
+      penBoundsService,
+      behaviorControls,
+      audioService,
+    } = context;
     const overlayLayer = layerService.withLayer('overlay', (layer) => layer);
     const fireworksLayer = new Container();
     fireworksLayer.sortableChildren = true;
@@ -432,6 +440,7 @@ export const createFireworksShowAction = (): ChickenActionDefinition => ({
 
     const sparkles: SparkParticle[] = [];
     let behaviorHandle: BehaviorControlHandle | null = null;
+    let fireworksSound: SoundPlaybackHandle | null = null;
     const previousSkyMode = environmentScene.getSkyMode();
     let skyModeActive = false;
 
@@ -446,6 +455,8 @@ export const createFireworksShowAction = (): ChickenActionDefinition => ({
       nightOverlay.destroy();
       behaviorHandle?.release();
       behaviorHandle = null;
+      fireworksSound?.stop();
+      fireworksSound = null;
       if (skyModeActive) {
         environmentScene.setSkyMode(previousSkyMode);
         skyModeActive = false;
@@ -463,6 +474,7 @@ export const createFireworksShowAction = (): ChickenActionDefinition => ({
         });
         environmentScene.setSkyMode('night');
         skyModeActive = true;
+        fireworksSound = audioService.playEffect('fireworksShow', { volume: 0.78 });
       },
       onUpdate: (deltaMS, elapsedMS) => {
         const fadeInStrength = clamp01(elapsedMS / NIGHT_FADE_MS);

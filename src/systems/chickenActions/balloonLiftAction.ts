@@ -2,6 +2,7 @@ import type { ChickenActionDefinition } from '../chickenActionSystem';
 import { CHICKEN_IDLE_POSE } from '../../entities/chicken';
 import { createBalloonBundle, type BalloonBundle } from '../../entities/balloonBundle';
 import type { BehaviorControlHandle } from './behaviorControl';
+import type { SoundPlaybackHandle } from '../../lib/audio/soundEffect';
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
@@ -26,7 +27,15 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
   id: 'balloon-lift',
   weight: 0.9,
   create: (context) => {
-    const { chicken, environmentScene, depthSystem, theme, flapAnimator, behaviorControls } = context;
+    const {
+      chicken,
+      environmentScene,
+      depthSystem,
+      theme,
+      flapAnimator,
+      behaviorControls,
+      audioService,
+    } = context;
     const penLayer = environmentScene.penLayer;
 
     const gripLocal = {
@@ -65,6 +74,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
     let releaseVelocity = { x: 0, y: 0 };
     let behaviorHandle: BehaviorControlHandle | null = null;
     let behaviorReleased = false;
+    let balloonSound: SoundPlaybackHandle | null = null;
 
     const releaseBehaviorControl = () => {
       if (behaviorReleased) {
@@ -76,6 +86,11 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
       chicken.view.position.set(basePosition.x, basePosition.y);
       chicken.resetPose();
       applyShadowLiftEffect(0);
+    };
+
+    const stopBalloonSound = () => {
+      balloonSound?.stop();
+      balloonSound = null;
     };
 
     const spawnBundle = () => {
@@ -215,6 +230,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
         flapAnimator.stop();
         spawnBundle();
         updateBundleAttachment();
+        balloonSound = audioService.playEffect('balloonInflation', { loop: true, volume: 0.65 });
       },
       onUpdate: (deltaMS, elapsedMS) => {
         const liftHeight = (() => {
@@ -274,6 +290,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
         if (flapAnimator.isRunning()) {
           flapAnimator.stop();
         }
+        stopBalloonSound();
         removeBundle();
       },
     };

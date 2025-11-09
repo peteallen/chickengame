@@ -3,6 +3,7 @@ import type { ChickenActionDefinition } from '../chickenActionSystem';
 import { CHICKEN_IDLE_POSE } from '../../entities/chicken';
 import { createJetpackRig } from '../../entities/jetpackRig';
 import type { BehaviorControlHandle } from './behaviorControl';
+import type { SoundPlaybackHandle } from '../../lib/audio/soundEffect';
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const easeOutQuad = (t: number) => 1 - (1 - t) * (1 - t);
@@ -59,7 +60,7 @@ export const createJetpackJoyrideAction = (): ChickenActionDefinition => ({
   id: 'jetpack-joyride',
   weight: 0.8,
   create: (context) => {
-    const { chicken, environmentScene, theme, behaviorControls } = context;
+    const { chicken, environmentScene, theme, behaviorControls, audioService } = context;
 
     const rig = createJetpackRig({ theme });
     rig.view.position.set(-4, 30);
@@ -138,6 +139,7 @@ export const createJetpackJoyrideAction = (): ChickenActionDefinition => ({
     };
 
     let behaviorHandle: BehaviorControlHandle | null = null;
+    let jetpackSound: SoundPlaybackHandle | null = null;
 
     const releaseBehaviorControl = () => {
       behaviorHandle?.release();
@@ -166,6 +168,8 @@ export const createJetpackJoyrideAction = (): ChickenActionDefinition => ({
       shadow.scale.set(baseShadow.scaleX, baseShadow.scaleY);
       shadow.alpha = baseShadow.alpha;
       chicken.view.position.set(basePosition.x, basePosition.y);
+      jetpackSound?.stop();
+      jetpackSound = null;
       releaseBehaviorControl();
     };
 
@@ -179,6 +183,7 @@ export const createJetpackJoyrideAction = (): ChickenActionDefinition => ({
           followerEnabled: false,
         });
         applyShadowLift(0);
+        jetpackSound = audioService.playEffect('jetpackAirLeakLoop', { loop: true, volume: 0.55 });
       },
       onUpdate: (deltaMS, elapsedMS) => {
         rig.update(deltaMS);

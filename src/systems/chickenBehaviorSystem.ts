@@ -68,6 +68,7 @@ export type ChickenBehaviorSystem = {
   setSpeedMultiplier: (multiplier: number) => void;
   setStateLock: (state: BehaviorState | null) => void;
   setAnimatorAuthority: (authority: AnimatorAuthority) => void;
+  getState: () => BehaviorState;
 };
 
 export const createChickenBehaviorSystem = ({
@@ -228,8 +229,10 @@ export const createChickenBehaviorSystem = ({
     enterState(state, { forceAnimatorControl: true });
   };
 
+  const getState = () => state;
+
   // kick things off with a walk so she starts exploring
   enterState('walk');
 
-  return { update, destroy, setSpeedMultiplier, setStateLock, setAnimatorAuthority };
+  return { update, destroy, setSpeedMultiplier, setStateLock, setAnimatorAuthority, getState };
 };

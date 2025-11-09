@@ -35,6 +35,7 @@ export const createDiscoPartyAction = (): ChickenActionDefinition => ({
         rig.setEnabled(false);
         rig.setPulseStrength(0);
         audioService.stopLoop('edm');
+        void audioService.playEffect('discoCrowdApplause', { volume: 0.7 });
         flapAnimator.stop();
         behaviorHandle?.release();
         behaviorHandle = null;

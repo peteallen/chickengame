@@ -54,6 +54,7 @@ export type ChickenActionSystem = {
   update: (deltaMS: number) => void;
   triggerRandomAction: () => boolean;
   isActionActive: () => boolean;
+  getCurrentActionId: () => string | null;
   destroy: () => void;
 };
 
@@ -141,5 +142,7 @@ export const createChickenActionSystem = (
 
   const isActionActive = () => Boolean(current);
 
-  return { update, triggerRandomAction, isActionActive, destroy };
+  const getCurrentActionId = () => current?.definition.id ?? null;
+
+  return { update, triggerRandomAction, isActionActive, getCurrentActionId, destroy };
 };

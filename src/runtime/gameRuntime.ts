@@ -31,6 +31,7 @@ import {
   type ChickenActionSystem,
 } from '../systems/chickenActionSystem';
 import { createBalloonLiftAction } from '../systems/chickenActions/balloonLiftAction';
+import { createBubbleBlowingAction } from '../systems/chickenActions/bubbleBlowingAction';
 import { createDiscoPartyAction } from '../systems/chickenActions/discoPartyAction';
 import { createLayEggAction } from '../systems/chickenActions/layEggAction';
 import { createJetpackJoyrideAction } from '../systems/chickenActions/jetpackJoyrideAction';
@@ -43,6 +44,7 @@ import {
   createChickFollowerManager,
   type ChickFollowerManager,
 } from '../systems/chickFollowerSystem';
+import { createChickenAmbientAudioSystem } from '../systems/chickenAmbientAudioSystem';
 import {
   createRenderDepthSystem,
   type RenderDepthSystem,
@@ -351,6 +353,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
 
   const actions = [
     createBalloonLiftAction(),
+    createBubbleBlowingAction(),
     createDiscoPartyAction(),
     createLayEggAction(),
     createJetpackJoyrideAction(),
@@ -376,6 +379,14 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
       overlays: { discoRig },
     },
     actions,
+  });
+
+  const ambientAudioSystem = createChickenAmbientAudioSystem({
+    audioService,
+    behaviorSystem,
+    actionSystem,
+    chickFollower,
+    flapAnimator,
   });
 
   const handleChickenTap = () => {
@@ -448,6 +459,13 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     priority: 70,
     update: (deltaMS) => chickFollower.update(deltaMS),
     destroy: () => chickFollower.destroy(),
+  });
+
+  registerSystem({
+    key: 'ambient-audio',
+    priority: 75,
+    update: (deltaMS) => ambientAudioSystem.update(deltaMS),
+    destroy: () => ambientAudioSystem.destroy(),
   });
 
   registerSystem({

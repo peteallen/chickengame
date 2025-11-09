@@ -44,6 +44,7 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       chickFollower,
       depthSystem,
       behaviorControls,
+      audioService,
     } = context;
 
     const penLayer = environmentScene.penLayer;
@@ -55,6 +56,7 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
     let eggShakePhase = 0;
     let eggRemoved = false;
     let eggSpawned = false;
+    let eggCrackSoundPlayed = false;
 
     let hasSpawnedChick = false;
     let walkAwayStarted = false;
@@ -212,6 +214,8 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
           speedMultiplier: 0,
         });
         chicken.resetPose();
+        eggCrackSoundPlayed = false;
+        void audioService.playEffect('henLaysChatter', { volume: 0.78 });
       },
       onUpdate: (deltaMS, elapsedMS) => {
         if (elapsedMS >= EGG_SPAWN_TIME_MS && !egg) {
@@ -219,6 +223,10 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
         }
         updateChickenPose(elapsedMS);
         updateEgg(deltaMS, elapsedMS);
+        if (!eggCrackSoundPlayed && elapsedMS >= EGG_HATCH_MS) {
+          eggCrackSoundPlayed = true;
+          void audioService.playEffect('eggShellPop', { volume: 0.8 });
+        }
         if (!hasSpawnedChick && elapsedMS >= CHICK_REVEAL_MS && eggPosition) {
           const chickScale = Math.max(0.35, Math.abs(chicken.view.scale.y) * 0.55);
           const footY = eggGroundY ?? eggPosition.y;
@@ -241,6 +249,7 @@ export const createLayEggAction = (): ChickenActionDefinition => ({
       onExit: () => {
         releaseControl();
         cleanupEgg();
+        eggCrackSoundPlayed = false;
       },
     };
   },
