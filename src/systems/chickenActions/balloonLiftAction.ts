@@ -3,6 +3,7 @@ import { CHICKEN_IDLE_POSE } from '../../entities/chicken';
 import { createBalloonBundle, type BalloonBundle } from '../../entities/balloonBundle';
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(Math.max(value, min), max);
+const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - clamp(t), 3);
 const easeInOutSine = (t: number) => -(Math.cos(Math.PI * clamp(t, 0, 1)) - 1) / 2;
 
@@ -24,7 +25,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
   id: 'balloon-lift',
   weight: 0.9,
   create: (context) => {
-    const { chicken, behaviorSystem, environmentScene, depthSystem, theme, flapAnimator } = context;
+    const { chicken, behaviorSystem, environmentScene, depthSystem, theme, flapAnimator, chickFollower } = context;
     const penLayer = environmentScene.penLayer;
 
     const gripLocal = {
@@ -36,6 +37,22 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
     const basePosition = {
       x: chicken.view.position.x,
       y: chicken.view.position.y,
+    };
+    const shadow = chicken.parts.shadow;
+    let shadowBaseScale = { x: shadow.scale.x, y: shadow.scale.y };
+    let shadowBaseAlpha = shadow.alpha;
+
+    const captureShadowBase = () => {
+      shadowBaseScale = { x: shadow.scale.x, y: shadow.scale.y };
+      shadowBaseAlpha = shadow.alpha;
+    };
+
+    const applyShadowLiftEffect = (liftRatio: number) => {
+      const clampedRatio = clamp(liftRatio, 0, 1);
+      const widthScale = lerp(shadowBaseScale.x, shadowBaseScale.x * 0.55, clampedRatio);
+      const heightScale = lerp(shadowBaseScale.y, shadowBaseScale.y * 0.3, clampedRatio);
+      shadow.scale.set(widthScale, heightScale);
+      shadow.alpha = lerp(shadowBaseAlpha, shadowBaseAlpha * 0.35, clampedRatio);
     };
 
     let bundle: BalloonBundle | null = null;
@@ -93,30 +110,30 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
     const applyChickenLift = (height: number, options?: { skipPose?: boolean }) => {
       const clamped = clamp(height / maxLift, 0, 1);
       chicken.view.position.y = basePosition.y - height;
-      if (options?.skipPose) {
-        return;
+      if (!options?.skipPose) {
+        const grabPhase = clamp(height <= 0 ? 0 : (height / maxLift) * 1.1, 0, 1);
+        const lean = -0.04 - MAX_SWAY_DEG * (1 - grabPhase) + clamped * 0.18;
+        const wingLift = -6 - 22 * (1 - grabPhase) + clamped * 48;
+        const headPitch = CHICKEN_IDLE_POSE.headPitch + 0.4 * clamped - 0.25 * (1 - grabPhase);
+        const headBob = CHICKEN_IDLE_POSE.headBob - 20 * (1 - grabPhase) + clamped * 18;
+        const pose = {
+          bodyLean: lean,
+          bodyLift: CHICKEN_IDLE_POSE.bodyLift - 12 * (1 - grabPhase) + clamped * 22,
+          headPitch,
+          headBob,
+          headForward: CHICKEN_IDLE_POSE.headForward + 6 * clamped,
+          beakOpen: CHICKEN_IDLE_POSE.beakOpen + 0.04 + clamped * 0.1,
+          wingPitch: CHICKEN_IDLE_POSE.wingPitch - 0.25 - 0.65 * (1 - grabPhase) + clamped * 0.4,
+          wingLift,
+          tailLift: CHICKEN_IDLE_POSE.tailLift - 0.12 + clamped * 0.18,
+          tailSplay: CHICKEN_IDLE_POSE.tailSplay + clamped * 0.25,
+          stride: 0,
+          frontFootLift: -10 * (1 - grabPhase) - clamped * 10,
+          backFootLift: -6 * (1 - grabPhase) - clamped * 6,
+        };
+        chicken.setPose(pose);
       }
-      const grabPhase = clamp(height <= 0 ? 0 : (height / maxLift) * 1.1, 0, 1);
-      const lean = -0.04 - MAX_SWAY_DEG * (1 - grabPhase) + clamped * 0.18;
-      const wingLift = -6 - 22 * (1 - grabPhase) + clamped * 48;
-      const headPitch = CHICKEN_IDLE_POSE.headPitch + 0.4 * clamped - 0.25 * (1 - grabPhase);
-      const headBob = CHICKEN_IDLE_POSE.headBob - 20 * (1 - grabPhase) + clamped * 18;
-      const pose = {
-        bodyLean: lean,
-        bodyLift: CHICKEN_IDLE_POSE.bodyLift - 12 * (1 - grabPhase) + clamped * 22,
-        headPitch,
-        headBob,
-        headForward: CHICKEN_IDLE_POSE.headForward + 6 * clamped,
-        beakOpen: CHICKEN_IDLE_POSE.beakOpen + 0.04 + clamped * 0.1,
-        wingPitch: CHICKEN_IDLE_POSE.wingPitch - 0.25 - 0.65 * (1 - grabPhase) + clamped * 0.4,
-        wingLift,
-        tailLift: CHICKEN_IDLE_POSE.tailLift - 0.12 + clamped * 0.18,
-        tailSplay: CHICKEN_IDLE_POSE.tailSplay + clamped * 0.25,
-        stride: 0,
-        frontFootLift: -10 * (1 - grabPhase) - clamped * 10,
-        backFootLift: -6 * (1 - grabPhase) - clamped * 6,
-      };
-      chicken.setPose(pose);
+      applyShadowLiftEffect(clamped);
     };
 
     const startRelease = (elapsedMS: number) => {
@@ -170,10 +187,13 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
     return {
       durationMS: ACTION_DURATION_MS,
       onEnter: () => {
+        chickFollower.setFollowingEnabled(false);
         behaviorSystem.setAnimatorAuthority('external');
         behaviorSystem.setStateLock('idle');
         behaviorSystem.setSpeedMultiplier(0);
         chicken.resetPose();
+        captureShadowBase();
+        applyShadowLiftEffect(0);
         flapAnimator.stop();
         spawnBundle();
         updateBundleAttachment();
@@ -226,6 +246,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
         updateBalloonDynamics(elapsedMS, liftHeight, releaseProgress, deltaMS);
       },
       onExit: () => {
+        chickFollower.setFollowingEnabled(true);
         behaviorSystem.setAnimatorAuthority('system');
         behaviorSystem.setStateLock(null);
         behaviorSystem.setSpeedMultiplier(1);
@@ -234,6 +255,7 @@ export const createBalloonLiftAction = (): ChickenActionDefinition => ({
         }
         chicken.view.position.set(basePosition.x, basePosition.y);
         chicken.resetPose();
+        applyShadowLiftEffect(0);
         removeBundle();
       },
     };
