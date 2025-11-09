@@ -134,7 +134,7 @@ export type Chicken = {
   metrics: typeof CHICKEN_METRICS;
 };
 
-const BASE_SCALE = 0.7;
+const BASE_SCALE = 0.49;
 
 export const CHICKEN_IDLE_POSE: ChickenPoseState = {
   bodyLean: -0.04,
