@@ -13,6 +13,7 @@ import { createBalloonLiftAction } from '../systems/chickenActions/balloonLiftAc
 import { createDiscoPartyAction } from '../systems/chickenActions/discoPartyAction';
 import { createLayEggAction } from '../systems/chickenActions/layEggAction';
 import { createJetpackJoyrideAction } from '../systems/chickenActions/jetpackJoyrideAction';
+import { createFireworksShowAction } from '../systems/chickenActions/fireworksShowAction';
 import { createActionBehaviorControls } from '../systems/chickenActions/behaviorControl';
 import { createChickFollowerManager } from '../systems/chickFollowerSystem';
 import { createDiscoRig } from '../entities/discoRig';
@@ -138,6 +139,7 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
     createDiscoPartyAction(),
     createLayEggAction(),
     createJetpackJoyrideAction(),
+    createFireworksShowAction(),
   ];
 
   const actionSystem = createChickenActionSystem({
@@ -153,6 +155,7 @@ export const bootstrap = async (options: BootstrapOptions = {}) => {
       chickFollower,
       depthSystem,
       behaviorControls,
+      layers: { overlay: overlayLayer },
       overlays: { discoRig },
       audio: { edmLoop },
     },

@@ -9,13 +9,15 @@ import {
   type PenBounds,
   type PenPolygon,
 } from '../lib/geometry/penBounds';
-import { createSkyBackdrop } from '../entities/skyBackdrop';
+import { createSkyBackdrop, type SkyBackdropMode } from '../entities/skyBackdrop';
 
 export type EnvironmentScene = {
   container: Container;
   penLayer: Container;
   layout: (size: { width: number; height: number }) => void;
   update: (deltaMS: number) => void;
+  setSkyMode: (mode: SkyBackdropMode) => void;
+  getSkyMode: () => SkyBackdropMode;
   getPenBounds: () => PenBounds | null;
   onPenBoundsChanged: (listener: (bounds: PenBounds) => void) => () => void;
 };
@@ -246,11 +248,19 @@ export const createEnvironmentScene = (
     sky.update(deltaMS);
   };
 
+  const setSkyMode = (mode: SkyBackdropMode) => {
+    sky.setMode(mode);
+  };
+
+  const getSkyMode = () => sky.getMode();
+
   return {
     container,
     penLayer,
     layout,
     update,
+    setSkyMode,
+    getSkyMode,
     getPenBounds: () => penBounds,
     onPenBoundsChanged: (listener: (bounds: PenBounds) => void) => {
       penBoundsListeners.add(listener);

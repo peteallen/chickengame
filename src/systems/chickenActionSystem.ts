@@ -1,3 +1,4 @@
+import type { Container } from 'pixi.js';
 import type { Chicken } from '../entities/chicken';
 import type { ChickenBehaviorSystem } from './chickenBehaviorSystem';
 import type { ChickenWalkAnimator } from './chickenWalkAnimator';
@@ -24,6 +25,9 @@ export type ChickenActionContext = {
   chickFollower: ChickFollowerManager;
   depthSystem: RenderDepthSystem;
   behaviorControls: ActionBehaviorControls;
+  layers: {
+    overlay: Container;
+  };
   overlays: {
     discoRig: DiscoRig;
   };
@@ -82,13 +86,19 @@ export const createChickenActionSystem = (
 ): ChickenActionSystem => {
   const { actions, context } = options;
   let current: ActiveAction | null = null;
+  let lastActionId: string | null = null;
 
   const triggerRandomAction = (): boolean => {
     if (current) {
       return false;
     }
     const available = actions.filter((action) => (action.isAvailable?.() ?? true));
-    const chosen = chooseAction(available);
+    const filtered =
+      lastActionId && available.length > 1
+        ? available.filter((action) => action.id !== lastActionId)
+        : available;
+    const pool = filtered.length > 0 ? filtered : available;
+    const chosen = chooseAction(pool);
     if (!chosen) {
       return false;
     }
@@ -112,6 +122,7 @@ export const createChickenActionSystem = (
     instance.onUpdate?.(deltaMS, elapsed, progress);
     if (elapsed >= instance.durationMS) {
       instance.onExit?.();
+      lastActionId = current.definition.id;
       context.behaviorControls.releaseAll();
       current = null;
     }
@@ -123,6 +134,7 @@ export const createChickenActionSystem = (
       return;
     }
     current.instance.onExit?.();
+    lastActionId = current.definition.id;
     current = null;
     context.behaviorControls.releaseAll();
   };

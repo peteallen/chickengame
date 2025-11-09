@@ -11,7 +11,11 @@ export type SkyBackdrop = {
   view: Container;
   layout: (layout: SkyBackdropLayout) => void;
   update: (deltaMS: number) => void;
+  setMode: (mode: SkyBackdropMode) => void;
+  getMode: () => SkyBackdropMode;
 };
+
+export type SkyBackdropMode = 'day' | 'night';
 
 type LayerConfig = {
   depthRange: [number, number];
@@ -25,6 +29,26 @@ type CloudInstance = {
   halfWidth: number;
   yRange: [number, number];
   speed: number;
+};
+
+type StarInstance = {
+  sprite: Graphics;
+  phase: number;
+  speed: number;
+  amplitude: number;
+  baseAlpha: number;
+};
+
+type NightGradient = {
+  top: number;
+  mid: number;
+  horizon: number;
+};
+
+const nightGradient: NightGradient = {
+  top: 0x020712,
+  mid: 0x08132b,
+  horizon: 0x13264a,
 };
 
 const layerConfigs: LayerConfig[] = [
@@ -54,12 +78,19 @@ export const createSkyBackdrop = (
   const view = new Container();
   view.eventMode = 'none';
 
+  const background = new Graphics();
+  background.eventMode = 'none';
+
   const sunContainer = new Container();
   sunContainer.eventMode = 'none';
   const sunHalo = new Graphics();
   const sunGlow = new Graphics();
   const sunCore = new Graphics();
   sunContainer.addChild(sunHalo, sunGlow, sunCore);
+
+  const starsLayer = new Container();
+  starsLayer.eventMode = 'none';
+  starsLayer.visible = false;
 
   const layerContainers = layerConfigs.map(() => {
     const layerView = new Container();
@@ -68,24 +99,82 @@ export const createSkyBackdrop = (
   });
   const [farLayer, midLayer, nearLayer] = layerContainers;
 
-  view.addChild(farLayer, sunContainer, midLayer, nearLayer);
+  view.addChild(background, starsLayer, farLayer, sunContainer, midLayer, nearLayer);
 
   const clouds: CloudInstance[] = [];
+  const stars: StarInstance[] = [];
   let layoutWidth = 0;
   let layoutHorizon = 0;
+  let layoutInfo: SkyBackdropLayout | null = null;
+  let mode: SkyBackdropMode = 'day';
+
+  const clearLayerChildren = (layer: Container) => {
+    const removed = layer.removeChildren();
+    removed.forEach((child) => child.destroy({ children: true }));
+  };
+
+  const clearClouds = () => {
+    layerContainers.forEach((layer) => clearLayerChildren(layer));
+    clouds.length = 0;
+  };
+
+  const clearStars = () => {
+    clearLayerChildren(starsLayer);
+    stars.length = 0;
+  };
+
+  const regenerateStars = (info: SkyBackdropLayout) => {
+    clearStars();
+    const { width, horizonY } = info;
+    const seed = ((width * 211) ^ (horizonY * 131)) >>> 0;
+    const random = createSeededRandom(seed);
+    const starCount = Math.max(50, Math.round(width / 10));
+    const skyHeight = Math.max(40, horizonY * 0.95);
+    for (let i = 0; i < starCount; i += 1) {
+      const radius = 0.6 + random() * 1.4;
+      const sprite = new Graphics();
+      sprite.circle(0, 0, radius).fill({ color: 0xffffff, alpha: 1 });
+      sprite.position.set(random() * width, random() * skyHeight * 0.95);
+      const baseAlpha = 0.35 + random() * 0.55;
+      sprite.alpha = baseAlpha;
+      starsLayer.addChild(sprite);
+      stars.push({
+        sprite,
+        phase: random() * Math.PI * 2,
+        speed: 2 + random() * 3,
+        amplitude: 0.4 + random() * 0.4,
+        baseAlpha,
+      });
+    }
+  };
+
+  const refreshBackdrop = () => {
+    if (!layoutInfo) {
+      return;
+    }
+    drawBackground(layoutInfo, mode, background, colors);
+    if (mode === 'day') {
+      drawSun(layoutInfo, { sunHalo, sunGlow, sunCore }, colors);
+      starsLayer.visible = false;
+      clearStars();
+      regenerateClouds(layoutInfo, {
+        colors,
+        layerContainers,
+        clouds,
+      });
+    } else {
+      drawMoon(layoutInfo, { sunHalo, sunGlow, sunCore });
+      clearClouds();
+      starsLayer.visible = true;
+      regenerateStars(layoutInfo);
+    }
+  };
 
   const layout = ({ width, height, horizonY }: SkyBackdropLayout) => {
     layoutWidth = width;
     layoutHorizon = horizonY;
-
-    const layoutInfo: SkyBackdropLayout = { width, height, horizonY };
-
-    drawSun(layoutInfo, { sunHalo, sunGlow, sunCore }, colors);
-    regenerateClouds(layoutInfo, {
-      colors,
-      layerContainers,
-      clouds,
-    });
+    layoutInfo = { width, height, horizonY };
+    refreshBackdrop();
   };
 
   const update = (deltaMS: number) => {
@@ -104,15 +193,25 @@ export const createSkyBackdrop = (
         cloud.view.y = sampleLayerY(cloud.yRange, layoutHorizon, Math.random);
       }
     }
+
+    if (mode === 'night') {
+      for (const star of stars) {
+        star.phase += deltaSeconds * star.speed;
+        const twinkle = 0.7 + Math.sin(star.phase) * star.amplitude;
+        star.sprite.alpha = Math.min(1, Math.max(0, star.baseAlpha * twinkle));
+      }
+    }
   };
 
-  const destroy = () => {
-    for (const layer of layerContainers) {
-      const removed = layer.removeChildren();
-      removed.forEach((child) => child.destroy({ children: true }));
+  const setMode = (next: SkyBackdropMode) => {
+    if (mode === next) {
+      return;
     }
-    clouds.length = 0;
+    mode = next;
+    refreshBackdrop();
   };
+
+  const getMode = () => mode;
 
   const regenerateClouds = (
     layoutInfo: SkyBackdropLayout,
@@ -122,7 +221,7 @@ export const createSkyBackdrop = (
       clouds: CloudInstance[];
     },
   ) => {
-    destroy();
+    clearClouds();
 
     const { colors: palette, layerContainers: containers, clouds: cloudList } = context;
     const { width, horizonY } = layoutInfo;
@@ -171,7 +270,7 @@ export const createSkyBackdrop = (
     });
   };
 
-  return { view, layout, update };
+  return { view, layout, update, setMode, getMode };
 };
 
 const drawSun = (
@@ -205,6 +304,70 @@ const drawSun = (
     .fill({ color: colors.sunCore, alpha: 1 })
     .circle(0, -radius * 0.25, radius * 0.4)
     .fill({ color: 0xffffff, alpha: 0.45 });
+};
+
+const drawMoon = (
+  { width, horizonY }: SkyBackdropLayout,
+  parts: { sunHalo: Graphics; sunGlow: Graphics; sunCore: Graphics },
+) => {
+  const radius = Math.max(32, Math.min(86, Math.min(width, horizonY) * 0.16));
+  const centerX = width - radius * 1.2;
+  const centerY = Math.max(radius * 0.75, horizonY * 0.2);
+
+  parts.sunHalo.position.set(centerX, centerY);
+  parts.sunGlow.position.set(centerX, centerY);
+  parts.sunCore.position.set(centerX, centerY);
+
+  parts.sunHalo
+    .clear()
+    .circle(0, 0, radius * 2)
+    .fill({ color: 0xffffff, alpha: 0.08 })
+    .circle(0, 0, radius * 1.4)
+    .fill({ color: 0xbfcfff, alpha: 0.12 });
+
+  parts.sunGlow
+    .clear()
+    .circle(0, 0, radius * 1.15)
+    .fill({ color: 0xe5ecff, alpha: 0.28 });
+
+  parts.sunCore
+    .clear()
+    .circle(0, 0, radius)
+    .fill({ color: 0xfafcff, alpha: 1 })
+    .circle(radius * 0.38, -radius * 0.1, radius * 0.78)
+    .fill({ color: nightGradient.top, alpha: 0.95 })
+    .circle(-radius * 0.28, -radius * 0.18, radius * 0.12)
+    .fill({ color: 0xd8e3ff, alpha: 0.55 })
+    .circle(-radius * 0.12, radius * 0.05, radius * 0.08)
+    .fill({ color: 0xd3dfff, alpha: 0.45 });
+};
+
+const drawBackground = (
+  layout: SkyBackdropLayout,
+  mode: SkyBackdropMode,
+  background: Graphics,
+  colors: Theme['atmosphere'],
+) => {
+  const { width, height, horizonY } = layout;
+  background.clear();
+  if (mode === 'day') {
+    background
+      .rect(0, 0, width, height)
+      .fill({ color: 0x63b9ff, alpha: 1 })
+      .rect(0, 0, width, horizonY * 0.8)
+      .fill({ color: colors.sunGlow, alpha: 0.18 })
+      .rect(0, horizonY * 0.55, width, horizonY * 0.6)
+      .fill({ color: colors.sunHalo, alpha: 0.12 });
+    return;
+  }
+
+  background
+    .rect(0, 0, width, height)
+    .fill({ color: nightGradient.top, alpha: 1 })
+    .rect(0, horizonY * 0.15, width, horizonY * 0.55)
+    .fill({ color: nightGradient.mid, alpha: 0.85 })
+    .rect(0, horizonY * 0.55, width, height - horizonY * 0.55)
+    .fill({ color: nightGradient.horizon, alpha: 0.9 });
 };
 
 const createCloud = ({
