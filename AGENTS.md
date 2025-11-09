@@ -27,7 +27,7 @@ chickengame/
 ## Folder Guidance
 - `src/app/`
   - `pixiApp.ts` centralizes creation/init of the Pixi `Application` so global renderer flags stay consistent.
-  - `bootstrap.ts` now only mounts the Pixi canvas, instantiates the runtime, and forwards ticker/resizer hooks; always return/await its destroy handler during tests.
+  - `bootstrap.ts` mounts the Pixi canvas, instantiates the runtime, and forwards ticker/resizer hooks; always return/await its destroy handler during tests.
 - `src/runtime/`
   - `gameRuntime.ts` exposes `createGameRuntime` plus typed `registerLayer`/`registerSystem` APIs. Add new systems or overlays by registering them here so bootstrap stays untouched. Keep wiring side-effect free by passing configs/services in through the runtime context.
 - `src/config/`
