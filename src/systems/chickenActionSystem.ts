@@ -53,6 +53,7 @@ export type ChickenActionDefinition = {
 export type ChickenActionSystem = {
   update: (deltaMS: number) => void;
   triggerRandomAction: () => boolean;
+  triggerAction: (actionId: string) => boolean;
   isActionActive: () => boolean;
   getCurrentActionId: () => string | null;
   destroy: () => void;
@@ -89,28 +90,48 @@ export const createChickenActionSystem = (
   let current: ActiveAction | null = null;
   let lastActionId: string | null = null;
 
+  const getAvailableActions = () => actions.filter((action) => (action.isAvailable?.() ?? true));
+
+  const startAction = (definition: ChickenActionDefinition | null): boolean => {
+    if (!definition || current) {
+      return false;
+    }
+    const instance = definition.create(context);
+    if (!instance || !Number.isFinite(instance.durationMS) || instance.durationMS <= 0) {
+      return false;
+    }
+    context.behaviorControls.releaseAll();
+    current = { definition, instance, elapsed: 0 };
+    current.instance.onEnter?.();
+    return true;
+  };
+
   const triggerRandomAction = (): boolean => {
     if (current) {
       return false;
     }
-    const available = actions.filter((action) => (action.isAvailable?.() ?? true));
+    const available = getAvailableActions();
     const filtered =
       lastActionId && available.length > 1
         ? available.filter((action) => action.id !== lastActionId)
         : available;
     const pool = filtered.length > 0 ? filtered : available;
     const chosen = chooseAction(pool);
-    if (!chosen) {
+    return startAction(chosen ?? null);
+  };
+
+  const triggerAction = (actionId: string): boolean => {
+    if (current) {
       return false;
     }
-    const instance = chosen.create(context);
-    if (!instance || !Number.isFinite(instance.durationMS) || instance.durationMS <= 0) {
+    const target = actions.find((action) => action.id === actionId);
+    if (!target) {
       return false;
     }
-    context.behaviorControls.releaseAll();
-    current = { definition: chosen, instance, elapsed: 0 };
-    current.instance.onEnter?.();
-    return true;
+    if (!(target.isAvailable?.() ?? true)) {
+      return false;
+    }
+    return startAction(target);
   };
 
   const update = (deltaMS: number) => {
@@ -144,5 +165,5 @@ export const createChickenActionSystem = (
 
   const getCurrentActionId = () => current?.definition.id ?? null;
 
-  return { update, triggerRandomAction, isActionActive, getCurrentActionId, destroy };
+  return { update, triggerRandomAction, triggerAction, isActionActive, getCurrentActionId, destroy };
 };

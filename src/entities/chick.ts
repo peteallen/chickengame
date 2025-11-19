@@ -120,7 +120,7 @@ const createFoot = (colors: Theme['chick']) => {
 export const createChick = (colors: Theme['chick']): Chick => {
   const view = new Container();
   view.sortableChildren = true;
-  view.eventMode = 'none';
+  view.eventMode = 'static';
 
   let scaleMagnitude = BASE_SCALE;
   let facing: ChickFacing = 'right';

@@ -4,6 +4,7 @@ import type { Theme } from '../config/theme';
 import type { EnvironmentScene } from '../scenes/environmentScene';
 import type { PenConstraintSystem } from './penConstraintSystem';
 import type { RenderDepthSystem } from './renderDepthSystem';
+import type { AudioService } from '../runtime/services';
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
@@ -29,6 +30,10 @@ type ActiveChick = {
   lifeMS: number;
   followDuration: number;
   fadeDuration: number;
+  jump?: {
+    elapsed: number;
+    duration: number;
+  };
 };
 
 export type ChickFollowerManager = {
@@ -56,8 +61,9 @@ export const createChickFollowerManager = (options: {
   penConstraints: PenConstraintSystem;
   theme: Theme;
   depthSystem: RenderDepthSystem;
+  audioService: AudioService;
 }): ChickFollowerManager => {
-  const { environmentScene, penConstraints, theme, depthSystem } = options;
+  const { environmentScene, penConstraints, theme, depthSystem, audioService } = options;
   const penLayer = environmentScene.penLayer;
   const fadeInDurationMS = 800;
   let active: ActiveChick | null = null;
@@ -74,6 +80,16 @@ export const createChickFollowerManager = (options: {
     active = null;
   };
 
+  const triggerJump = () => {
+    if (!active || active.jump) return;
+    
+    active.jump = {
+      elapsed: 0,
+      duration: 800,
+    };
+    void audioService.playEffect('chickPeep', { volume: 0.8, pitch: randomRange(0.9, 1.1) });
+  };
+
   const spawn = ({ target, position, baseScale, facing, followDurationMS, fadeDurationMS }: SpawnOptions) => {
     clear();
     const chick = createChick(theme.chick);
@@ -82,6 +98,11 @@ export const createChickFollowerManager = (options: {
     const viewY = position.footY - chick.metrics.feet.groundY * baseScale;
     chick.view.position.set(position.x, viewY);
     chick.view.alpha = 0;
+    
+    // Interaction for jump
+    chick.view.cursor = 'pointer';
+    chick.view.on('pointerdown', triggerJump);
+
     penLayer.addChild(chick.view);
     penConstraints.register({ target: chick.view, mode: 'pen', behavior: 'clamp' });
     depthSystem.register({
@@ -118,7 +139,30 @@ export const createChickFollowerManager = (options: {
     const { chick, target } = active;
     active.lifeMS += deltaMS;
 
-    if (followEnabled) {
+    if (active.jump) {
+      active.jump.elapsed += deltaMS;
+      const progress = active.jump.elapsed / active.jump.duration;
+      
+      if (progress >= 1) {
+        active.jump = undefined;
+        // Resume normal pose
+        chick.resetPose();
+      } else {
+        // Jump physics/animation
+        const jumpHeight = Math.sin(progress * Math.PI) * 60;
+        const spin = progress * Math.PI * 4; // 2 spins
+        
+        chick.setPose({
+          bodyLift: jumpHeight,
+          wingLift: 12 + Math.sin(progress * 30) * 8,
+          bodyLean: spin,
+          headTilt: spin * 0.5,
+          beakOpen: 0.5,
+          frontFootLift: 10,
+          backFootLift: 10,
+        });
+      }
+    } else if (followEnabled) {
       // Retarget spacing occasionally for more organic wandering
       active.retargetTimer += deltaMS;
       if (active.retargetTimer >= active.retargetInterval) {

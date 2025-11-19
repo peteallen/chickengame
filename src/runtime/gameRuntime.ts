@@ -28,6 +28,7 @@ import {
 } from '../systems/chickenBehaviorSystem';
 import {
   createChickenActionSystem,
+  type ChickenActionDefinition,
   type ChickenActionSystem,
 } from '../systems/chickenActionSystem';
 import { createBalloonLiftAction } from '../systems/chickenActions/balloonLiftAction';
@@ -344,6 +345,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     penConstraints: penConstraintSystem,
     theme,
     depthSystem,
+    audioService,
   });
 
   const behaviorControls = createActionBehaviorControls({
@@ -351,7 +353,7 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
     chickFollower,
   });
 
-  const actions = [
+  const actions: ChickenActionDefinition[] = [
     createBalloonLiftAction(),
     createBubbleBlowingAction(),
     createDiscoPartyAction(),
@@ -485,11 +487,28 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
   let devWorkbench: DevWorkbench | null = null;
   if (devMode) {
     const initialSize = viewportService.getSize();
+    const formatActionLabel = (id: string) =>
+      id
+        .split('-')
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(' ');
+    const devActionOptions = actions.map((definition) => ({
+      id: definition.id,
+      label: formatActionLabel(definition.id),
+      isAvailable: () => definition.isAvailable?.() ?? true,
+    }));
     devWorkbench = createDevWorkbench({
       layer: devLayer,
       root,
       theme,
       initialSize,
+      actions: devActionOptions,
+      actionControls: {
+        trigger: (actionId) => actionSystem.triggerAction(actionId),
+        isActive: () => actionSystem.isActionActive(),
+        getActiveId: () => actionSystem.getCurrentActionId(),
+      },
     });
     const detachDevLayout = viewportService.onResize(({ size }) => {
       devWorkbench?.layout(size);
