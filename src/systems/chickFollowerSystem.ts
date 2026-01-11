@@ -87,7 +87,10 @@ export const createChickFollowerManager = (options: {
       elapsed: 0,
       duration: 800,
     };
-    void audioService.playEffect('chickPeep', { volume: 0.8, pitch: randomRange(0.9, 1.1) });
+    void audioService.playEffect('chickPeep', {
+      volume: 0.8,
+      playbackRate: randomRange(0.9, 1.1),
+    });
   };
 
   const spawn = ({ target, position, baseScale, facing, followDurationMS, fadeDurationMS }: SpawnOptions) => {

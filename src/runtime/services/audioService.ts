@@ -37,6 +37,9 @@ const effectConfigs: Record<AudioEffectKey, CreateSoundEffectOptions> = {
   chickPeep: { maxConcurrent: 3, baseVolume: 0.6 },
   bubbleBurst: { maxConcurrent: 1, baseVolume: 0.88 },
   eggShellPop: { maxConcurrent: 1, baseVolume: 0.8 },
+  pottyFart: { maxConcurrent: 1, baseVolume: 0.7 },
+  pottyPlop: { maxConcurrent: 1, baseVolume: 0.75 },
+  pottyFlush: { maxConcurrent: 1, baseVolume: 0.8 },
 };
 
 export const createAudioService = (): AudioService => {

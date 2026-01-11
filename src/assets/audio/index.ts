@@ -13,6 +13,9 @@ import chickenWingFlap from './chicken_wing_flap.mp3';
 import chickPeep from './chick_peep.mp3';
 import bubbleBurst from './bubble_burst.mp3';
 import eggShellPop from './egg_shell_pop.mp3';
+import pottyFart from './potty_fart.mp3';
+import pottyPlop from './potty_plop.mp3';
+import pottyFlush from './potty_flush.mp3';
 
 export const audioManifest = {
   balloonInflation,
@@ -30,6 +33,9 @@ export const audioManifest = {
   chickPeep,
   bubbleBurst,
   eggShellPop,
+  pottyFart,
+  pottyPlop,
+  pottyFlush,
 } as const;
 
 export type AudioEffectKey = keyof typeof audioManifest;

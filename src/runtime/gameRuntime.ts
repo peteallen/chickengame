@@ -37,6 +37,8 @@ import { createDiscoPartyAction } from '../systems/chickenActions/discoPartyActi
 import { createLayEggAction } from '../systems/chickenActions/layEggAction';
 import { createJetpackJoyrideAction } from '../systems/chickenActions/jetpackJoyrideAction';
 import { createFireworksShowAction } from '../systems/chickenActions/fireworksShowAction';
+import { createPottyDropAction } from '../systems/chickenActions/pottyDropAction';
+import { createTwinkleXylophoneAction } from '../systems/chickenActions/twinkleXylophoneAction';
 import {
   createActionBehaviorControls,
   type ActionBehaviorControls,
@@ -356,10 +358,12 @@ export const createGameRuntime = (options: GameRuntimeOptions): GameRuntime => {
   const actions: ChickenActionDefinition[] = [
     createBalloonLiftAction(),
     createBubbleBlowingAction(),
+    createTwinkleXylophoneAction(),
     createDiscoPartyAction(),
     createLayEggAction(),
     createJetpackJoyrideAction(),
     createFireworksShowAction(),
+    createPottyDropAction(),
   ];
 
   const actionSystem = createChickenActionSystem({
