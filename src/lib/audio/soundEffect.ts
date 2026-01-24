@@ -17,6 +17,7 @@ export type SoundPlaybackHandle = {
 
 export type SoundEffect = {
   play: (options?: SoundEffectPlayOptions) => SoundPlaybackHandle | null;
+  prime: () => void;
   stopAll: () => void;
   destroy: () => void;
 };
@@ -29,6 +30,7 @@ export type CreateSoundEffectOptions = {
 
 const noopSoundEffect: SoundEffect = {
   play: () => null,
+  prime: () => {},
   stopAll: () => {},
   destroy: () => {},
 };
@@ -109,6 +111,53 @@ export const createSoundEffect = (
     } satisfies SoundPlaybackHandle;
   };
 
+  const prime: SoundEffect['prime'] = () => {
+    const audio =
+      pool.find((entry) => entry.paused) ??
+      (pool.length < maxConcurrent ? createElement() : null);
+    if (!audio) {
+      return;
+    }
+
+    const previous = {
+      muted: audio.muted,
+      volume: audio.volume,
+      loop: audio.loop,
+      playbackRate: audio.playbackRate,
+    };
+
+    audio.muted = previous.muted;
+    audio.loop = false;
+    audio.playbackRate = 1;
+    audio.volume = 0;
+
+    try {
+      audio.currentTime = 0;
+    } catch {
+      // Ignore metadata readiness issues.
+    }
+
+    const finish = () => {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // Ignore metadata readiness issues.
+      }
+      audio.muted = previous.muted;
+      audio.volume = previous.volume;
+      audio.loop = previous.loop;
+      audio.playbackRate = previous.playbackRate;
+    };
+
+    const playbackPromise = audio.play();
+    if (playbackPromise && typeof playbackPromise.then === 'function') {
+      void playbackPromise.then(finish).catch(finish);
+      return;
+    }
+    finish();
+  };
+
   const stopAll = () => {
     pool.forEach((audio) => {
       audio.pause();
@@ -124,5 +173,5 @@ export const createSoundEffect = (
     pool.length = 0;
   };
 
-  return { play, stopAll, destroy } satisfies SoundEffect;
+  return { play, prime, stopAll, destroy } satisfies SoundEffect;
 };

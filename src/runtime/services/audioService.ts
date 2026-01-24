@@ -16,10 +16,13 @@ export type AudioService = {
   getLoop: (key: AudioLoopKey) => EdmLoop | undefined;
   playEffect: (key: AudioEffectKey, options?: SoundEffectPlayOptions) => SoundPlaybackHandle | null;
   stopEffect: (key: AudioEffectKey) => void;
+  unlockEffects: () => void;
   stopAllEffects: () => void;
   stopAll: () => void;
   destroy: () => void;
 };
+
+const hasWindow = typeof window !== 'undefined';
 
 const effectConfigs: Record<AudioEffectKey, CreateSoundEffectOptions> = {
   balloonInflation: { loop: true, maxConcurrent: 1, baseVolume: 0.68 },
@@ -50,6 +53,8 @@ export const createAudioService = (): AudioService => {
       createSoundEffect(audioManifest[key], effectConfigs[key]),
     ]),
   );
+  let unlocked = false;
+  let detachUnlockListeners = () => {};
 
   const getLoop = (key: AudioLoopKey) => loops.get(key);
 
@@ -74,6 +79,32 @@ export const createAudioService = (): AudioService => {
     effects.get(key)?.stopAll();
   };
 
+  const unlockEffects = () => {
+    if (unlocked) {
+      return;
+    }
+    unlocked = true;
+    detachUnlockListeners();
+    const effect = effects.get('chickPeep') ?? effects.values().next().value;
+    effect?.prime();
+  };
+
+  if (hasWindow) {
+    const handleFirstGesture = () => {
+      unlockEffects();
+    };
+    const passiveOptions: AddEventListenerOptions = { passive: true };
+    window.addEventListener('pointerdown', handleFirstGesture, passiveOptions);
+    window.addEventListener('touchstart', handleFirstGesture, passiveOptions);
+    window.addEventListener('keydown', handleFirstGesture);
+    detachUnlockListeners = () => {
+      window.removeEventListener('pointerdown', handleFirstGesture, passiveOptions);
+      window.removeEventListener('touchstart', handleFirstGesture, passiveOptions);
+      window.removeEventListener('keydown', handleFirstGesture);
+      detachUnlockListeners = () => {};
+    };
+  }
+
   const stopAllEffects = () => {
     effects.forEach((effect) => effect.stopAll());
   };
@@ -84,6 +115,7 @@ export const createAudioService = (): AudioService => {
   };
 
   const destroy = () => {
+    detachUnlockListeners();
     stopAll();
     loops.clear();
     effects.forEach((effect) => effect.destroy());
@@ -96,6 +128,7 @@ export const createAudioService = (): AudioService => {
     getLoop,
     playEffect,
     stopEffect,
+    unlockEffects,
     stopAllEffects,
     stopAll,
     destroy,
